@@ -131,7 +131,7 @@ $$ L^{VF}(\omega) = \hat{\mathbb{E}}_t \left[ \Big( V_\omega(s_t) - V_t^{target}
 
 ### 3.5 策略与价值更新(PPO Update Phase)
 
-对收集的数据进行若干次 Epoch 训练:
+将当前经验池中收集到的整批数据打乱，切分成多个 Mini-batch（微批次）。对这批数据进行若干次内部循环（PPO Epochs，如循环 4 遍）。对每个 Mini-batch 执行以下更新：
     
 1. **策略模型更新(Actor Update)**
     - 计算重要性采样比率:  $\rho_t = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_\mathrm{old}}(a_t|s_t)}$
