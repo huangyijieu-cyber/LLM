@@ -35,7 +35,7 @@ Top-K路由的目标是计算出一个稀疏的门控向量 g_t, 该向量的维
 整个流程可以分为三步:
 
 1. 计算亲和度分数:$$h(x) = x \cdot W_r$$
-为输入令牌 u_t 和每个专家 i 计算一个标量分数 s_i,t, 表示它们之间的匹配程度.
+为输入令牌 $u_t$ 和每个专家 i 计算一个标量分数 $s_i,t$, 表示它们之间的匹配程度.
 
 
 2. Top-K选择: $$\text{KeepTopK}(h(x), K)_i = \begin{cases} h(x)_i & \text{if } h(x)_i \in \text{Top-}K(h(x)) \\ -\infty & \text{otherwise} \end{cases}$$

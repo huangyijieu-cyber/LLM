@@ -1,0 +1,105 @@
+[
+  {
+    "input": {
+      "policy_chosen_logps": [
+        1
+      ],
+      "policy_rejected_logps": [
+        0
+      ],
+      "ref_chosen_logps": [
+        0
+      ],
+      "ref_rejected_logps": [
+        0
+      ],
+      "beta": 1
+    },
+    "output": 0.313262
+  },
+  {
+    "input": {
+      "policy_chosen_logps": [
+        0.2,
+        0.3
+      ],
+      "policy_rejected_logps": [
+        0.1,
+        0.5
+      ],
+      "ref_chosen_logps": [
+        0,
+        0
+      ],
+      "ref_rejected_logps": [
+        0,
+        0
+      ],
+      "beta": 0.1
+    },
+    "output": 0.695678
+  },
+  {
+    "input": {
+      "policy_chosen_logps": [
+        2
+      ],
+      "policy_rejected_logps": [
+        1
+      ],
+      "ref_chosen_logps": [
+        1.5
+      ],
+      "ref_rejected_logps": [
+        1
+      ],
+      "beta": 0.5
+    },
+    "output": 0.575939
+  },
+  {
+    "input": {
+      "policy_chosen_logps": [
+        -1
+      ],
+      "policy_rejected_logps": [
+        1
+      ],
+      "ref_chosen_logps": [
+        0
+      ],
+      "ref_rejected_logps": [
+        0
+      ],
+      "beta": 1
+    },
+    "output": 2.126928
+  },
+  {
+    "input": {
+      "policy_chosen_logps": [
+        1,
+        2,
+        3
+      ],
+      "policy_rejected_logps": [
+        0,
+        2,
+        4
+      ],
+      "ref_chosen_logps": [
+        0,
+        0,
+        0
+      ],
+      "ref_rejected_logps": [
+        0,
+        0,
+        0
+      ],
+      "beta": 0.2,
+      "label_smoothing": 0.1
+    },
+    "output": 0.696475
+  }
+]

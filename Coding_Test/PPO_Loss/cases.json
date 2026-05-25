@@ -1,0 +1,86 @@
+[
+  {
+    "input": {
+      "old_log_probs": [
+        0
+      ],
+      "new_log_probs": [
+        0
+      ],
+      "advantages": [
+        1
+      ],
+      "clip_epsilon": 0.2
+    },
+    "output": -1.0
+  },
+  {
+    "input": {
+      "old_log_probs": [
+        0
+      ],
+      "new_log_probs": [
+        0.2
+      ],
+      "advantages": [
+        1
+      ],
+      "clip_epsilon": 0.1
+    },
+    "output": -1.1
+  },
+  {
+    "input": {
+      "old_log_probs": [
+        0
+      ],
+      "new_log_probs": [
+        -0.2
+      ],
+      "advantages": [
+        -1
+      ],
+      "clip_epsilon": 0.1
+    },
+    "output": 0.9
+  },
+  {
+    "input": {
+      "old_log_probs": [
+        0,
+        0
+      ],
+      "new_log_probs": [
+        0,
+        0.1
+      ],
+      "advantages": [
+        1,
+        -1
+      ],
+      "clip_epsilon": 0.2
+    },
+    "output": 0.052585
+  },
+  {
+    "input": {
+      "old_log_probs": [
+        0,
+        0,
+        0
+      ],
+      "new_log_probs": [
+        0.5,
+        -0.5,
+        0
+      ],
+      "advantages": [
+        2,
+        1,
+        -1
+      ],
+      "clip_epsilon": 0.2
+    },
+    "output": -0.668844
+  }
+]
