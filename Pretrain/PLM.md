@@ -2,7 +2,7 @@
 
 ## 1. Encoder-only PLM
 
-Encoder-only PLM, 顾名思义, 是只保留了 Transformer 中的 Encoder 层, 并通过堆叠得到的预训练模型. 这种模型天生适合**自然语言理解** (Natural Language Understanding, NLU) 任务.
+Encoder-only PLM, 顾名思义, 是只保留了 Transformer 中的 Encoder 层, 并通过堆叠得到的预训练模型. 这种模型天生适合 **自然语言理解** (Natural Language Understanding, NLU) 任务.
 
 ### 1.1 BERT
 
@@ -59,9 +59,9 @@ BERT 还设计了另一个预测任务: NSP. 其核心思想是, 要求模型判
 #### 1.1.5 下游任务微调
 
 值得注意的是, 预训练时的 prediction_heads 是专门针对预训练任务打造的, 目的是更好地提升 Encoder 模块的文本理解能力. 故在下游任务的微调上, 需要设计适配下游任务的特定分类头. 由此, BERT 可适配多种 NLP 任务:
-1. 对于**文本分类任务**, 可以直接修改模型结构中的 prediction_heads 最后的分类头即可.
-2. 对于**序列标注等任务**, 可以集成 BERT 多层的隐含层向量再输出最后的标注结果.
-3. 对于**文本生成任务**, 也同样可以取 Encoder 的输出直接解码得到最终生成结果. 因此, BERT 可以非常高效地应用于多种 NLP 任务.
+1. 对于 **文本分类任务**, 可以直接修改模型结构中的 prediction_heads 最后的分类头即可.
+2. 对于 **序列标注等任务**, 可以集成 BERT 多层的隐含层向量再输出最后的标注结果.
+3. 对于 **文本生成任务**, 也同样可以取 Encoder 的输出直接解码得到最终生成结果. 因此, BERT 可以非常高效地应用于多种 NLP 任务.
 
 ### 1.2 RoBERTa
 

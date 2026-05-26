@@ -29,7 +29,7 @@ $$
 
 ### 1.2 Mask Self-Attention: 掩码自注意力
 
-通常应用于 Decoder 中. 为了保持自回归的特性, 在计算 Attention 时引入一个**掩码矩阵 (Mask)**, 屏蔽当前时间步之后的信息, 使得当前位置 t 的输出只依赖于位置 t 及之前的输入.
+通常应用于 Decoder 中. 为了保持自回归的特性, 在计算 Attention 时引入一个 **掩码矩阵 (Mask)**, 屏蔽当前时间步之后的信息, 使得当前位置 t 的输出只依赖于位置 t 及之前的输入.
 
 $$
 \text{MaskedAttention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}} + M\right) V
@@ -47,7 +47,7 @@ $$
 
 ### 1.3 Multi-head Attention (MHA): 多头注意力
 
-将 $Q$, $K$, $V$ 投影到 n_head (h) 个不同的低维子空间中并行计算 Attention, 最后将各个头的输出拼接（Concat）并进行一次线性映射以恢复原始维度. 它允许模型同时关注来自**不同表示子空间**的信息.
+将 $Q$, $K$, $V$ 投影到 n_head (h) 个不同的低维子空间中并行计算 Attention, 最后将各个头的输出拼接（Concat）并进行一次线性映射以恢复原始维度. 它允许模型同时关注来自 **不同表示子空间** 的信息.
 
 $$
 \text{MultiHeadAttention}(Q, K, V) = \text{Concat}(\text{head}_1, \dots, \text{head}_h) W^O

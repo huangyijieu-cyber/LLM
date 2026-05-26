@@ -8,16 +8,16 @@ LLM 的推理通常是内存受限 (Memory-limited) 而非计算受限 (Compute-
 
 ### 1.1 算术强度与内存墙
 
-在高性能计算领域,**Roofline模型**定义了硬件性能的理论上限.计算性能 $P$ 受限于峰值算力 $\pi$ 和峰值内存带宽 $\beta$:
+在高性能计算领域, **Roofline模型** 定义了硬件性能的理论上限.计算性能 $P$ 受限于峰值算力 $\pi$ 和峰值内存带宽 $\beta$:
 
 $$
 P = \min(\pi, I \times \beta)
 $$
 
-其中 $I$ 为**算术强度(Arithmetic Intensity)**,定义为每字节内存访问所进行的浮点运算次数 (FLOPs/Byte).
+其中 $I$ 为 **算术强度(Arithmetic Intensity)**,定义为每字节内存访问所进行的浮点运算次数 (FLOPs/Byte).
 
-- **预填充阶段 (Prefill Phase)**:当模型处理用户输入的Prompt时,由于所有Token并行计算,Attention 与 MLP 层的矩阵乘法具有较高的算术强度,此时主要受限于**GPU的Tensor Core算力**.
-- **解码阶段 (Decoding Phase)**:在逐个生成Token的阶段,模型必须为每一个新Token加载全部几百GB的模型权重,却仅进行一次向量-矩阵乘法.这意味着算术强度极低,硬件性能完全受限于**显存带宽**.
+- **预填充阶段 (Prefill Phase)**:当模型处理用户输入的Prompt时,由于所有Token并行计算,Attention 与 MLP 层的矩阵乘法具有较高的算术强度,此时主要受限于 **GPU的Tensor Core算力**.
+- **解码阶段 (Decoding Phase)**:在逐个生成Token的阶段,模型必须为每一个新Token加载全部几百GB的模型权重,却仅进行一次向量-矩阵乘法.这意味着算术强度极低,硬件性能完全受限于 **显存带宽**.
 
 ### 1.2 注意力机制的二次方困境
 
@@ -59,7 +59,7 @@ $$
 
 ### 2.3 Flash Attention
 
-Flash Attention提出了一种**IO感知算法**,通过**分块**和**重计算**技术,将整个 Attention 操作融合为一个CUDA Kernel.
+Flash Attention提出了一种 **IO感知算法**,通过 **分块** 和 **重计算** 技术,将整个 Attention 操作融合为一个CUDA Kernel.
 
 #### 2.3.1 分块
 
@@ -98,8 +98,8 @@ Flash Attention主要优化的是训练和预填充阶段.对于生成阶段,由
 在推理长文本时,除了模型权重,保存历史 Token 信息的 KV Cache 会占用海量显存.目前的先进技术(如 KIVI, FP8 机制)不仅量化权重(Weight),还将 KV Cache 量化为 INT8 或 INT4,极大地增加了单张显卡能处理的上下文长度.
 
 主流的量化方法有:
-- **GPTQ (Generative Pre-trained Transformer Quantization)**： 主要针对**权重** 量化。它利用 Hessian 矩阵信息，逐层调整未量化权重以补偿量化带来的误差。GPTQ 适合在消费级显卡上运行大模型，因为它大幅减少了显存占用和加载带宽 。
-- **AWQ (Activation-aware Weight Quantization)**： AWQ 发现，权重的“重要性”并不取决于权重本身的大小，而取决于它处理的**激活值** 的大小。保留那 1% 处理大激活值的权重的精度，将其余 99% 量化为 INT4，可以获得极佳的效果。AWQ 对硬件更友好，不需要反向传播或重构 。
+- **GPTQ (Generative Pre-trained Transformer Quantization)** ： 主要针对 **权重** 量化。它利用 Hessian 矩阵信息，逐层调整未量化权重以补偿量化带来的误差。GPTQ 适合在消费级显卡上运行大模型，因为它大幅减少了显存占用和加载带宽 。
+- **AWQ (Activation-aware Weight Quantization)** ： AWQ 发现，权重的“重要性”并不取决于权重本身的大小，而取决于它处理的 **激活值** 的大小。保留那 1% 处理大激活值的权重的精度，将其余 99% 量化为 INT4，可以获得极佳的效果。AWQ 对硬件更友好，不需要反向传播或重构 。
 
 #### 2.4.2 模型剪枝
 
