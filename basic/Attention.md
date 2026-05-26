@@ -1,6 +1,5 @@
 # Attention
 
-
 ## 1. Transformer 中的 Attention
 
 在 Transformer 中，所有的 Attention 计算都基于三个核心向量：$Q$（Query，查询）、$K$（Key，键）、$V$（Value，值）。
@@ -53,11 +52,12 @@ $$
 $$
 \text{MultiHeadAttention}(Q, K, V) = \text{Concat}(\text{head}_1, \dots, \text{head}_h) W^O
 $$
+
 其中每个注意力头为：
+
 $$
 \text{head}_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)
 $$
-
 
 1. 根据输入 **x** 生成 $Q$, $K$, $V$ 矩阵 (`[B, L, D]`).
 
@@ -67,7 +67,7 @@ $$
 
 4. 后续计算和 Self Attention 一样, 都是计算 Score (`[B, h, L, L]`) 后进行 Softmax, 然后与 $V$ 矩阵相乘, 得到注意力矩阵 (`[B, h, L, D']`).
 
-5. 将注意力矩阵维度转换回来(`[B, L, h, D']`), 然后将多头特征进行拼接(`[B, L, D]`), 最后经过一个维度为 `[D, D]` 的权重矩阵进行特征融合, 得到最终的注意力矩阵(`[B, L, D]`). 
+5. 将注意力矩阵维度转换回来(`[B, L, h, D']`), 然后将多头特征进行拼接(`[B, L, D]`), 最后经过一个维度为 `[D, D]` 的权重矩阵进行特征融合, 得到最终的注意力矩阵(`[B, L, D]`).
 
 ### 1.4 Cross Attention: 交叉注意力
 
@@ -82,7 +82,6 @@ $$
 2. 计算得到 Score (`[B, L_q, L_k]`).
 
 3. Softmax 后与 $V$ 矩阵相乘得到注意力矩阵 (`[B, L_q, D]`).
-
 
 ## 2. Attention 架构的改进
 

@@ -5,5 +5,4 @@ Transformer架构             √
 分词                        √
 layer norm / RMS norm       √
 layer norm 前置             √
-GLU / SwiGLU                √ 
-
+GLU / SwiGLU                √

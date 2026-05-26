@@ -10,7 +10,9 @@ LLM 的推理通常是内存受限 (Memory-limited) 而非计算受限 (Compute-
 
 在高性能计算领域,**Roofline模型**定义了硬件性能的理论上限.计算性能 $P$ 受限于峰值算力 $\pi$ 和峰值内存带宽 $\beta$:
 
-$$P = \min(\pi, I \times \beta)$$
+$$
+P = \min(\pi, I \times \beta)
+$$
 
 其中 $I$ 为**算术强度(Arithmetic Intensity)**,定义为每字节内存访问所进行的浮点运算次数 (FLOPs/Byte).
 
@@ -21,7 +23,9 @@ $$P = \min(\pi, I \times \beta)$$
 
 标准Transformer的核心是缩放点积注意力:
 
-$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
+$$
+\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+$$
 
 对于长度为 $L$ 的序列,计算 $QK^T$ 会生成一个 $L \times L$ 的注意力分数矩阵.
 
@@ -55,7 +59,6 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)
 
 ### 2.3 Flash Attention
 
-
 Flash Attention提出了一种**IO感知算法**,通过**分块**和**重计算**技术,将整个 Attention 操作融合为一个CUDA Kernel.
 
 #### 2.3.1 分块
@@ -84,7 +87,6 @@ Flash Attention主要优化的是训练和预填充阶段.对于生成阶段,由
 - **并行计算**:启动多个CUDA Thread Block并行计算Query与这些KV Chunks的注意力分数.
 - **归约(Reduction)**:最后通过一个Reduce操作合并各块的结果.
 - **效果**:在长上下文(如32k+)推理时,Flash Decoding能将速度提升8倍以上,因为它充分利用了GPU的所有SM核心,而不是让大部分核心空闲.
-
 
 ### 2.4 量化与剪枝
 
@@ -135,17 +137,23 @@ Flash Attention主要优化的是训练和预填充阶段.对于生成阶段,由
 
 总显存占用 $M_{total}$ 由两部分组成:
 
-$$M_{total} = M_{weights} + M_{KVCache} + M_{activation}$$
+$$
+M_{total} = M_{weights} + M_{KVCache} + M_{activation}
+$$
 
 *(注:推理阶段激活值 $M_{activation}$ 相对较小,主要由权重和KV Cache主导,但在长序列下KV Cache占主导)*
 
 其中:
 #### 1. 模型权重显存 ($M_{weights}$)
 
-$$M_{weights} \approx P_{model} \times S_{prec}$$
+$$
+M_{weights} \approx P_{model} \times S_{prec}
+$$
 
 #### 2. KV Cache 显存 ($M_{KVCache}$)
 
-$$M_{KVCache} = 2 \times N_{layers} \times N_{kv} \times D_{head} \times L_{seq} \times B \times S_{prec}$$
+$$
+M_{KVCache} = 2 \times N_{layers} \times N_{kv} \times D_{head} \times L_{seq} \times B \times S_{prec}
+$$
 
 *(系数"2"代表同时存储Key和Value.)*

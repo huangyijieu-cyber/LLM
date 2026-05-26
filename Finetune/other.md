@@ -8,7 +8,6 @@ SFT（监督微调）
 
 LoRA / QLoRA / Adapter / Prefix tuning
 
-
 Fine-tuning（微调）
 │
 ├── 1. 训练目标范式（Objective）

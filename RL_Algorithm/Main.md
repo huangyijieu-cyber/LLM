@@ -21,9 +21,9 @@
 
 #### 1.2.1 集合 (Sets)
 
-- 状态 (State): $\mathcal{S}$ 
-- 动作 (Action): $\mathcal{A}$ 
-- 奖励 (Reward): $\mathcal{R}$ 
+- 状态 (State): $\mathcal{S}$
+- 动作 (Action): $\mathcal{A}$
+- 奖励 (Reward): $\mathcal{R}$
 
 #### 1.2.2 概率分布 (Probabilistic Distribution)
 

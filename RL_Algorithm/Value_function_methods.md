@@ -59,16 +59,31 @@ $$
 由于 $v_\pi(s_t)$ 是未知的待估计量, 必须用近似值替代, 从而产生可实现算法:
 
 - **蒙特卡洛 (MC)**: 用折扣回报 $g_t$ 代替 $v_\pi(s_t)$:
-  $$w_{t+1} = w_t + \alpha_t (g_t - \hat{v}(s_t, w_t)) \nabla_w \hat{v}(s_t, w_t)$$
+
+$$
+w_{t+1} = w_t + \alpha_t (g_t - \hat{v}(s_t, w_t)) \nabla_w \hat{v}(s_t, w_t)
+$$
+
 - **时序差分 (TD)**: 用 TD 目标 $r_{t+1} + \gamma \hat{v}(s_{t+1}, w_t)$ 代替 $v_\pi(s_t)$:
-  $$w_{t+1} = w_t + \alpha_t [r_{t+1} + \gamma \hat{v}(s_{t+1}, w_t) - \hat{v}(s_t, w_t)] \nabla_w \hat{v}(s_t, w_t)$$
+
+$$
+w_{t+1} = w_t + \alpha_t [r_{t+1} + \gamma \hat{v}(s_{t+1}, w_t) - \hat{v}(s_t, w_t)] \nabla_w \hat{v}(s_t, w_t)
+$$
 
 ### 2.3 函数近似器的选择
 
 1.  **线性函数近似** (传统广泛使用):
-    $$\hat{v}(s,w) = \phi^T(s) w$$
+
+$$
+\hat{v}(s,w) = \phi^T(s) w
+$$
+
     其中 $\phi(s)$ 是特征向量, 可为多项式基, 傅里叶基等. 此时 $\nabla_w \hat{v}(s,w) = \phi(s)$ , TD 更新变为 **TD-Linear** 算法:
-    $$w_{t+1} = w_t + \alpha_t [r_{t+1} + \gamma \phi^T(s_{t+1}) w_t - \phi^T(s_t) w_t] \phi(s_t)$$
+
+$$
+w_{t+1} = w_t + \alpha_t [r_{t+1} + \gamma \phi^T(s_{t+1}) w_t - \phi^T(s_t) w_t] \phi(s_t)
+$$
+
     - **缺点**: 难以选取合适的特征向量.
     - **优点**: 理论性质更好理解; **表格表示是线性函数表示的一种特例** (取 $\phi(s) = e_s$ 为单位向量, 则 $\hat{v}(s,w) = w(s)$ ).
 2.  **神经网络** (当前广泛使用): 作为非线性函数近似器, 输入为 $s$ , 输出为 $\hat{v}(s,w)$ , 参数为 $w$ (所有权重和偏置).

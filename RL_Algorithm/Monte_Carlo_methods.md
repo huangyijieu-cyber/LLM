@@ -6,9 +6,11 @@
 - **核心优势**：不需要模型即可进行估计.
 
 - **大数定律**：对于随机变量 $X$, 设 $\{x_j\}_{j=1}^N$ 为独立同分布样本, $\bar{x} = \frac{1}{N}\sum_{j=1}^N x_j$ 为样本均值, 则
-  $$
+
+$$
   \mathbb{E}[\bar{x}] = \mathbb{E}[X], \quad \mathrm{Var}[\bar{x}] = \frac{1}{N}\mathrm{Var}[X].
-  $$
+$$
+
   $\bar{x}$ 是 $\mathbb{E}[X]$ 的无偏估计, 方差随 $N$ 增大趋近于零.
 
 ## 2. Model-free
@@ -19,15 +21,19 @@
 
 动作值的两种表达式:
 - **需要模型**:
-  $$
+
+$$
   q_{\pi_k}(s,a) = \sum_r p(r|s,a)r + \gamma \sum_{s'} p(s'|s,a) v_{\pi_k}(s')
-  $$
+$$
+
 - **不需要模型**:
-  $$
+
+$$
   q_{\pi_k}(s,a) = \mathbb{E}[G_t | S_t = s, A_t = a]
-  $$
+$$
 
 基于数据估计 $q_{\pi_k}(s,a)$ 的方法: 从 $(s,a)$ 出发, 遵循策略 $\pi_k$ 生成一条 episode, 该 episode 的回报 $g(s,a)$ 即为 $G_t$ 的一个样本. 使用多个样本的平均值估计:
+
 $$
 q_{\pi_k}(s,a) \approx \frac{1}{N}\sum_{i=1}^{N} g^{(i)}(s,a).
 $$
@@ -52,7 +58,6 @@ MC Basic 是策略迭代的无模型变体. 在第 $k$ 次迭代中:
      - 策略改进:
        - 寻找最大动作值: $a_k^*(s) = \arg\max_a q_k(s, a)$.
        - 策略更新: 如果 $a = a_k^*$, 则 $\pi_{k+1}(a|s) = 1$, 否则 $\pi_{k+1}(a|s) = 0$.
-
 
 ## 4. MC Exploring Starts 算法
 
@@ -93,13 +98,15 @@ MC Basic 是策略迭代的无模型变体. 在第 $k$ 次迭代中:
 
 **软策略 (Soft policy)**: 采取任何动作的概率均为正.
 **ε-贪心策略**:
+
 $$
-\pi(a|s) = 
+\pi(a|s) =
 \begin{cases}
 1 - \frac{\epsilon}{|\mathcal{A}(s)|}(|\mathcal{A}(s)| - 1), & \text{对于贪心动作}, \\
 \frac{\epsilon}{|\mathcal{A}(s)|}, & \text{对于其他 } |\mathcal{A}(s)| - 1 \text{ 个动作}.
 \end{cases}
 $$
+
 其中 $\epsilon \in [0,1]$, $|\mathcal{A}(s)|$ 是状态 $s$ 下可用的动作数.
 
 - 当 $\epsilon \to 0$, 趋近贪心策略 (利用多, 探索少).
@@ -109,9 +116,11 @@ $$
 
 ### 4.4.2 嵌入 ε-贪心策略
 策略改进步骤变为在 $\epsilon$-贪心策略集合 $\Pi_{\epsilon}$ 中求解:
+
 $$
 \pi_{k+1}(s) = \arg \max_{\pi \in \Pi_{\epsilon}} \sum_a \pi(a|s) q_{\pi_k}(s,a).
 $$
+
 最优解即为 $\epsilon$-贪心策略, 其贪心动作为 $a_k^* = \arg \max_a q_{\pi_k}(s,a)$.
 
 ### 4.4.3 具体实现
@@ -128,6 +137,6 @@ $$
      - 策略评估: $q(s_t, a_t) \leftarrow Returns(s_t, a_t) / Num(s_t, a_t)$.
      - 策略改进:
        - 寻找最大动作值: $a^* = \arg\max_a q(s_t, a)$.
-       - 策略更新: 
+       - 策略更新:
          - 如果 $a = a^*$, 则 $\pi(a|s_t) = 1 - \frac{|\mathcal{A}(s_t)| - 1}{|\mathcal{A}(s_t)|} \epsilon$.
          - 如果 $a \neq a^*$, 则 $\pi(a|s_t) = \frac{\epsilon}{|\mathcal{A}(s_t)|}$.
