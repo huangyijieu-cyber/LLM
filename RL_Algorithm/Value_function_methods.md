@@ -96,7 +96,7 @@ $$
 w_{t+1} = w_t + \alpha_t [r_{t+1} + \gamma \hat{q}(s_{t+1}, a_{t+1}, w_t) - \hat{q}(s_t, a_t, w_t)] \nabla_w \hat{q}(s_t, a_t, w_t)
 $$
 
-结合策略评估与策略改进 (如 $\epsilon$-greedy), 即可搜索最优策略.
+结合策略评估与策略改进 (如 $\epsilon$ -greedy), 即可搜索最优策略.
 
 ## 4. Q-learning 与函数近似
 

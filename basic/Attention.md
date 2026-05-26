@@ -2,7 +2,7 @@
 
 ## 1. Transformer 中的 Attention
 
-在 Transformer 中，所有的 Attention 计算都基于三个核心向量：$Q$（Query，查询）、$K$（Key，键）、$V$（Value，值）。
+在 Transformer 中，所有的 Attention 计算都基于三个核心向量： $Q$ （Query，查询）、 $K$ （Key，键）、 $V$ （Value，值）。
 
 ### 1.1 Self Attention: 自注意力
 

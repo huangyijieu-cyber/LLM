@@ -55,7 +55,7 @@ $$
 L_{GRPO}(\theta) = \mathbb{E} \left[\min\Big(\rho_{i,t} \hat{A}_i, \; \text{clip}(\rho_{i,t}, 1-\epsilon, 1+\epsilon) \hat{A}_i\Big) - \beta D_{KL} \right]
 $$
 
-- **$\rho_{i,t}$**: 重要性采样比率 $\frac{\pi_\theta(a_{i,t}|s_{i,t})}{\pi_{\theta_{old}}(a_{i,t}|s_{i,t})}$(同 PPO).
+- **$\rho_{i,t}$**: 重要性采样比率 $\frac{\pi_\theta(a_{i,t}|s_{i,t})}{\pi_{\theta_{old}}(a_{i,t}|s_{i,t})}$ (同 PPO).
 - **$\hat{A}_i$**: 刚刚算出的组内相对优势. 注意, 同一个句子 $y_i$ 中的所有 token 共享这个句子级别的优势.
 - **$\beta D_{KL}$**: 对偏离参考模型的惩罚项.
 
@@ -71,8 +71,8 @@ $$
 
 ### 3.2 组内样本生成 (Group Rollout Phase)
 
-1. 从数据集中采样一个 Prompt $x$(或者一个 Batch 的 Prompts).
-2. **策略模型 $\pi_\theta$** 针对该 Prompt $x$, 并行生成 $G$ 个不同的回答序列 $\{y_1, y_2, \dots, y_G\}$(例如 $G=4$ 或 $8$).
+1. 从数据集中采样一个 Prompt $x$ (或者一个 Batch 的 Prompts).
+2. **策略模型 $\pi_\theta$** 针对该 Prompt $x$, 并行生成 $G$ 个不同的回答序列 $\{y_1, y_2, \dots, y_G\}$ (例如 $G=4$ 或 $8$).
 3. 记录生成这 $G$ 个序列时的旧策略概率 $\pi_{\theta_{old}}$.
 
 ### 3.3 奖励打分与优势计算 (Reward & Advantage Phase)

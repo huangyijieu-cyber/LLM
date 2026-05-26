@@ -69,9 +69,9 @@ $$
 
 将 Sarsa 与策略改进步骤组合, 整体仍称为 Sarsa.
 
-对每回合, 从初始状态-动作开始, 收集 $(r_{t+1},s_{t+1},a_{t+1})$, 更新 $q(s_t,a_t)$, 然后用 $\epsilon$-greedy 立刻更新策略.
+对每回合, 从初始状态-动作开始, 收集 $(r_{t+1},s_{t+1},a_{t+1})$, 更新 $q(s_t,a_t)$, 然后用 $\epsilon$ -greedy 立刻更新策略.
 
-策略使用 $\epsilon$-greedy 以平衡探索与利用.
+策略使用 $\epsilon$ -greedy 以平衡探索与利用.
 
 ## 3. n-step Sarsa: 统一 Sarsa 与 MC
 - 定义 n 步回报:
@@ -128,7 +128,7 @@ $$
 | Sarsa | $r_{t+1} + \gamma q_t(s_{t+1}, a_{t+1})$ |
 | n-step Sarsa | $r_{t+1} + \gamma r_{t+2} + \dots + \gamma^n q_t(s_{t+n}, a_{t+n})$ |
 | Q-learning | $r_{t+1} + \gamma \max_a q_t(s_{t+1}, a)$ |
-| Monte Carlo | $r_{t+1} + \gamma r_{t+2} + \dots$ (此时 $\alpha_t = 1$， 即 $q_{t+1} = \bar{q}_t$) |
+| Monte Carlo | $r_{t+1} + \gamma r_{t+2} + \dots$ (此时 $\alpha_t = 1$ ， 即 $q_{t+1} = \bar{q}_t$) |
 
 所有 TD 算法都可视为求解贝尔曼方程或贝尔曼最优方程的随机近似算法，具体对应如下:
 
