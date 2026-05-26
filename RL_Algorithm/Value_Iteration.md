@@ -3,44 +3,44 @@
 ### 1.1 矩阵-向量形式与分解
 值迭代的更新公式为
 
-$$
+```math
 v_{k+1} = f(v_k) = \max_{\pi}(r_{\pi} + \gamma P_{\pi} v_k), \quad k=1,2,3,\dots
-$$
+```
 
 该过程可分解为两步:
 
 - **策略更新 (Policy Update):** 求解
 
-$$
+```math
   \pi_{k+1} = \arg \max_{\pi}(r_{\pi} + \gamma P_{\pi} v_k)
-$$
+```
 
 - **值更新 (Value Update):**
 
-$$
+```math
   v_{k+1} = r_{\pi_{k+1}} + \gamma P_{\pi_{k+1}} v_k
-$$
+```
 
 ### 1.2 元素形式
 对于每个状态 $s$ , 策略更新的元素形式为
 
-$$
+```math
 \pi_{k+1}(s) = \arg \max_{\pi} \sum_a \pi(a|s) \left( \sum_r p(r|s,a)r + \gamma \sum_{s'} p(s'|s,a) v_k(s') \right)
-$$
+```
 
 定义动作值 $q_k(s,a)$ 为
 
-$$
+```math
 q_k(s,a) = \sum_r p(r|s,a)r + \gamma \sum_{s'} p(s'|s,a) v_k(s')
-$$
+```
 
 最优动作 $a_k^*(s) = \arg \max_a q_k(s,a)$ , 由此得到的策略 $\pi_{k+1}$ 称为 **贪心策略 (greedy policy)** , 因为它直接选择最大的 q 值.
 
 值更新等价于
 
-$$
+```math
 v_{k+1}(s) = \max_a q_k(s,a)
-$$
+```
 
 ### 1.3. 具体实现
 
@@ -59,32 +59,32 @@ $$
 从一个初始策略 $\pi_0$ 开始, 重复以下两步:
 - **策略评估 (Policy Evaluation, PE):** 计算当前策略 $\pi_k$ 的状态值 $v_{\pi_k}$ , 即求解贝尔曼方程
 
-$$
+```math
   v_{\pi_k} = r_{\pi_k} + \gamma P_{\pi_k} v_{\pi_k}
-$$
+```
 
   注意这里的 $v_{\pi_k}$ 是真实的状态值函数.
 - **策略改进 (Policy Improvement, PI):**
 
-$$
+```math
   \pi_{k+1} = \arg \max_{\pi} (r_{\pi} + \gamma P_{\pi} v_{\pi_k})
-$$
+```
 
   该最大化是按分量进行的.
 
 迭代序列:
 
-$$
+```math
 \pi_0 \xrightarrow{PE} v_{\pi_0} \xrightarrow{PI} \pi_1 \xrightarrow{PE} v_{\pi_1} \xrightarrow{PI} \pi_2 \xrightarrow{PE} \dots
-$$
+```
 
 #### Q1: 如何计算 $v_{\pi_k}$ ?
   闭式解: $v_{\pi_k} = (I - \gamma P_{\pi_k})^{-1} r_{\pi_k}$
   迭代解:
 
-$$
+```math
   v_{\pi_k}^{(j+1)} = r_{\pi_k} + \gamma P_{\pi_k} v_{\pi_k}^{(j)}, \quad j = 0,1,2,\dots
-$$
+```
 
   策略迭代本身是一个外层迭代, 其中内嵌了另一个迭代过程用于策略评估.
 
@@ -112,9 +112,9 @@ $$
 
 具体地, 考虑从 $v_0$ 开始计算 $v_{\pi_1}$ 的过程:
 
-$$
+```math
 v_{\pi_1}^{(0)} = v_0 \;\rightarrow\; v_{\pi_1}^{(1)} = r_{\pi_1} + \gamma P_{\pi_1} v_0 \;\rightarrow\; v_{\pi_1}^{(2)} \dots \;\rightarrow\; v_{\pi_1}^{(\infty)}
-$$
+```
 
 **值迭代只给出 $v_1 = v_{\pi_1}^{(1)}$ , 而策略迭代需要 $v_{\pi_1}^{(\infty)}$ .** 截断策略迭代则只计算有限步 $j_{\text{truncate}}$ , 即用 $v_{\pi_1}^{(j)}$ 作为 $v_{\pi_1}$ 的近似.
 
@@ -122,9 +122,9 @@ $$
 
 若将策略评估的初始值设为 $v_{\pi_k}^{(0)} = v_{\pi_{k-1}}$ , 则对每个 $j$ 都有
 
-$$
+```math
 v_{\pi_k}^{(j+1)} \geq v_{\pi_k}^{(j)}
-$$
+```
 
 因此截断不会破坏收敛性, 仍能保证单调改进.
 

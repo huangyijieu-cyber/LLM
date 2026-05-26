@@ -8,9 +8,9 @@
 
 自注意力是指 Q, K, V 均来源于同一个输入张量 **x**.
 
-$$
+```math
 \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right) V
-$$
+```
 
 1. **x** (`[B, L, D]`) 首先分别经过三个形状为 d_model * d_model (`[D, D]`) 权重矩阵 $W_Q$, $W_K$, $W_V$, 得到的 $Q$, $K$, $V$ 矩阵 (`[B, L, D]`).
 
@@ -31,9 +31,9 @@ $$
 
 通常应用于 Decoder 中. 为了保持自回归的特性, 在计算 Attention 时引入一个 **掩码矩阵 (Mask)**, 屏蔽当前时间步之后的信息, 使得当前位置 t 的输出只依赖于位置 t 及之前的输入.
 
-$$
+```math
 \text{MaskedAttention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}} + M\right) V
-$$
+```
 
 1. 前期计算与标准的 Self Attention 完全一致, 直到计算出注意力得分 $Score = \frac{Score}{\sqrt{D}}$ (`[B, L, L]`).
 
@@ -49,15 +49,15 @@ $$
 
 将 $Q$, $K$, $V$ 投影到 n_head (h) 个不同的低维子空间中并行计算 Attention, 最后将各个头的输出拼接（Concat）并进行一次线性映射以恢复原始维度. 它允许模型同时关注来自 **不同表示子空间** 的信息.
 
-$$
+```math
 \text{MultiHeadAttention}(Q, K, V) = \text{Concat}(\text{head}_1, \dots, \text{head}_h) W^O
-$$
+```
 
 其中每个注意力头为：
 
-$$
+```math
 \text{head}_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)
-$$
+```
 
 1. 根据输入 **x** 生成 $Q$, $K$, $V$ 矩阵 (`[B, L, D]`).
 

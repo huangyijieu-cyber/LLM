@@ -21,27 +21,27 @@ LN 是对 **单个样本内部的特征维度** 进行归一化。
 
 首先，计算输入向量的均值 $\mu$ 和方差 $\sigma^2$ ：
 
-$$
+```math
 \mu = \frac{1}{d} \sum_{i=1}^{d} x_i
-$$
+```
 
-$$
+```math
 \sigma^2 = \frac{1}{d} \sum_{i=1}^{d} (x_i - \mu)^2
-$$
+```
 
 接着，使用这两个统计量对输入进行标准化：
 
-$$
+```math
 \hat{x}_i = \frac{x_i - \mu}{\sqrt{\sigma^2 + \epsilon}}
-$$
+```
 
 其中， $\epsilon$ 是一个微小的常数（如 1e-5），用于防止分母为零带来的数值不稳定。
 
 最后，为了保证模型的表达能力（Expressivity）不被归一化操作限制，引入了可学习的缩放参数 $\gamma$ （Gain）和偏置参数 $\beta$ （Bias）：
 
-$$
+```math
 y_i = \gamma_i \hat{x}_i + \beta_i
-$$
+```
 
 在初始化阶段，通常将 $\gamma$ 设为 1， $\beta$ 设为 0，使得初始状态下的 LayerNorm 近似为恒等变换。
 
@@ -56,9 +56,9 @@ $$
 ### 2.1 Post-Normalization
 在 Google 最初的论文《Attention Is All You Need》以及 BERT 模型中，采用的是 Post-Norm 结构。即归一化层被放置在残差连接（Residual Connection）之后：
 
-$$
+```math
 x_{l+1} = LN(x_l + Sublayer(x_l))
-$$
+```
 
 Post-Norm的特性：
 
@@ -71,9 +71,9 @@ Post-Norm的特性：
 ### 2.2 Pre-Normalization
 为了解决 Post-Norm 的训练不稳定性，GPT-2、GPT-3 以及随后的 LLaMA、PaLM 等主流大模型转向了 Pre-Norm 结构。即归一化层被放置在子层的输入端，且位于残差分支内部：
 
-$$
+```math
 x_{l+1} = x_l + Sublayer(LN(x_l))
-$$
+```
 
 1. 高速公路（Highway）效应: Pre-Norm 结构最核心的优势在于其创造了一条贯穿整个网络的“恒等路径”（Identity Path）, 在反向传播时，梯度可以直接沿着这条主干路径无损地传导至底层，而不需要经过非线性的归一化层。这极大地改善了梯度流，使得训练超深网络成为可能。
 
@@ -91,13 +91,13 @@ $$
 
 RMSNorm 省略了均值计算，直接使用均方根（Root Mean Square）进行归一化：
 
-$$
+```math
 RMS(x) = \sqrt{\frac{1}{d} \sum_{i=1}^{d} x_i^2 + \epsilon}
-$$
+```
 
-$$
+```math
 \bar{x}_i = \frac{x_i}{RMS(x)} \cdot \gamma_i
-$$
+```
 
 ---
 

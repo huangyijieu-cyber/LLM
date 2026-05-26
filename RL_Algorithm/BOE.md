@@ -9,23 +9,23 @@
 
 - **元素形式 (elementwise form)**:
 
-$$
+```math
   v(s) = \max_{\pi} \sum_{a} \pi(a|s) \left( \sum_{r} p(r|s,a) r + \gamma \sum_{s'} p(s'|s,a) v(s') \right), \quad \forall s \in \mathcal{S}
-$$
+```
 
   或写为
 
-$$
+```math
   v(s) = \max_{\pi} \sum_{a} \pi(a|s) q(s,a), \quad \forall s \in \mathcal{S}
-$$
+```
 
   其中 $q(s,a) = \sum_{r} p(r|s,a) r + \gamma \sum_{s'} p(s'|s,a) v(s')$ 为动作值.
 
 - **矩阵-向量形式 (matrix-vector form)**:
 
-$$
+```math
   v = \max_{\pi} (r_{\pi} + \gamma P_{\pi} v)
-$$
+```
 
   其中 $[r_{\pi}]_s \triangleq \sum_a \pi(a|s) \sum_r p(r|s,a) r$, $[P_{\pi}]_{s,s'} = p(s'|s) \triangleq \sum_a \pi(a|s) p(s'|s,a)$, 最大化是按元素进行的.
 
@@ -37,25 +37,25 @@ $$
 
 因此, 贝尔曼最优方程化简为:
 
-$$
+```math
   v(s) = \max_{a \in \mathcal{A}(s)} q(s,a)
-$$
+```
 
   且取得最优时的策略为 **确定性贪心策略**:
 
-$$
+```math
   \pi(a|s) =
   \begin{cases}
   1, & a = a^*, \quad a^* = \arg\max_a q(s,a) \\
   0, & a \neq a^*
   \end{cases}
-$$
+```
 
 由压缩映射定理, 贝尔曼最优方程 **存在唯一的解** $v^*$. 可以通过 **[值迭代 (value iteration)](./Value_Iteration.md)** 算法求解:
 
-$$
+```math
   v_{k+1} = f(v_k) = \max_{\pi} (r_{\pi} + \gamma P_{\pi} v_k)
-$$
+```
 
   对任意初始 $v_0$, 序列 $\{v_k\}$ 指数级快速收敛到唯一解 $v^*$, 收敛速度由 $\gamma$ 决定.
 
@@ -63,20 +63,20 @@ $$
 
 设 $v^*$ 是 BOE 的唯一解, $\pi^*$ 是达到右侧最大化的策略, 则有:
 
-$$
+```math
   v^* = r_{\pi^*} + \gamma P_{\pi^*} v^*
-$$
+```
 
   即 $v^* = v_{\pi^*}$, 是策略 $\pi^*$ 对应的状态值.
 - **策略最优性定理:** 对于任何策略 $\pi$, 均有 $v^* \ge v_{\pi}$. 因此 $v^*$ 是 **最优状态值**, $\pi^*$ 是 **最优策略**.
 - **贪心最优策略定理:** 对每个状态 $s$, 确定性贪心策略
 
-$$
+```math
   \pi^*(a|s) =
   \begin{cases}
   1, & a = a^*(s) = \arg\max_{a} q^*(s,a) \\
   0, & \text{否则}
   \end{cases}
-$$
+```
 
   其中 $q^*(s,a) = \sum_{r} p(r|s,a) r + \gamma \sum_{s'} p(s'|s,a) v^*(s')$, 总是最优的 (即能解决 BOE).

@@ -24,9 +24,9 @@
 
 目标函数定义为均方误差:
 
-$$
+```math
 J(w) = \mathbb{E}[(v_\pi(S) - \hat{v}(S,w))^2]
-$$
+```
 
 期望是关于状态随机变量 $S$ 的. $S$ 的分布有两种常见选择:
 
@@ -40,49 +40,49 @@ $$
 
 使用梯度下降最小化 $J(w)$ :
 
-$$
+```math
 w_{k+1} = w_k - \alpha_k \nabla_w J(w_k)
-$$
+```
 
 真实梯度为:
 
-$$
+```math
 \nabla_w J(w) = -2 \mathbb{E}[(v_\pi(S) - \hat{v}(S,w)) \nabla_w \hat{v}(S,w)]
-$$
+```
 
 用 **随机梯度** 代替期望, 得到参数更新公式:
 
-$$
+```math
 w_{t+1} = w_t + \alpha_t (v_\pi(s_t) - \hat{v}(s_t, w_t)) \nabla_w \hat{v}(s_t, w_t)
-$$
+```
 
 由于 $v_\pi(s_t)$ 是未知的待估计量, 必须用近似值替代, 从而产生可实现算法:
 
 - **蒙特卡洛 (MC)**: 用折扣回报 $g_t$ 代替 $v_\pi(s_t)$:
 
-$$
+```math
 w_{t+1} = w_t + \alpha_t (g_t - \hat{v}(s_t, w_t)) \nabla_w \hat{v}(s_t, w_t)
-$$
+```
 
 - **时序差分 (TD)**: 用 TD 目标 $r_{t+1} + \gamma \hat{v}(s_{t+1}, w_t)$ 代替 $v_\pi(s_t)$:
 
-$$
+```math
 w_{t+1} = w_t + \alpha_t [r_{t+1} + \gamma \hat{v}(s_{t+1}, w_t) - \hat{v}(s_t, w_t)] \nabla_w \hat{v}(s_t, w_t)
-$$
+```
 
 ### 2.3 函数近似器的选择
 
 1.  **线性函数近似** (传统广泛使用):
 
-$$
+```math
 \hat{v}(s,w) = \phi^T(s) w
-$$
+```
 
     其中 $\phi(s)$ 是特征向量, 可为多项式基, 傅里叶基等. 此时 $\nabla_w \hat{v}(s,w) = \phi(s)$ , TD 更新变为 **TD-Linear** 算法:
 
-$$
+```math
 w_{t+1} = w_t + \alpha_t [r_{t+1} + \gamma \phi^T(s_{t+1}) w_t - \phi^T(s_t) w_t] \phi(s_t)
-$$
+```
 
     - **缺点**: 难以选取合适的特征向量.
     - **优点**: 理论性质更好理解; **表格表示是线性函数表示的一种特例** (取 $\phi(s) = e_s$ 为单位向量, 则 $\hat{v}(s,w) = w(s)$ ).
@@ -92,9 +92,9 @@ $$
 
 扩展到动作值函数 $\hat{q}(s,a,w)$, Sarsa 更新为:
 
-$$
+```math
 w_{t+1} = w_t + \alpha_t [r_{t+1} + \gamma \hat{q}(s_{t+1}, a_{t+1}, w_t) - \hat{q}(s_t, a_t, w_t)] \nabla_w \hat{q}(s_t, a_t, w_t)
-$$
+```
 
 结合策略评估与策略改进 (如 $\epsilon$ -greedy), 即可搜索最优策略.
 
@@ -102,9 +102,9 @@ $$
 
 Q-learning 更新为:
 
-$$
+```math
 w_{t+1} = w_t + \alpha_t [r_{t+1} + \gamma \max_{a \in \mathcal{A}(s_{t+1})} \hat{q}(s_{t+1}, a, w_t) - \hat{q}(s_t, a_t, w_t)] \nabla_w \hat{q}(s_t, a_t, w_t)
-$$
+```
 
 与 Sarsa 的区别在于用 $\max_a \hat{q}(s_{t+1}, a, w_t)$ 代替 $\hat{q}(s_{t+1}, a_{t+1}, w_t)$.
 
@@ -116,9 +116,9 @@ $$
 
 目标函数 (损失函数) 为:
 
-$$
+```math
 J(w) = \mathbb{E}\left[\left(R + \gamma \max_{a \in \mathcal{A}(S')} \hat{q}(S', a, w) - \hat{q}(S, A, w)\right)^2\right]
-$$
+```
 
 - **梯度计算难题**: 参数 $w$ 同时出现在 $\hat{q}(S,A,w)$ 和目标值 $y \doteq R + \gamma \max_a \hat{q}(S',a,w)$ 中, 且由于 max 操作, $\nabla_w y \neq \gamma \max_a \nabla_w \hat{q}(S',a,w)$.
 - **解决方案**: 引入 **两个网络**:
@@ -127,15 +127,15 @@ $$
 
 此时目标函数退化为:
 
-$$
+```math
 J = \mathbb{E}\left[\left(R + \gamma \max_{a \in \mathcal{A}(S')} \hat{q}(S', a, w_T) - \hat{q}(S, A, w)\right)^2\right]
-$$
+```
 
 梯度变为易于计算的形式:
 
-$$
+```math
 \nabla_w J = \mathbb{E}\left[ \left( R + \gamma \max_{a} \hat{q}(S', a, w_T) - \hat{q}(S, A, w) \right) \nabla_w \hat{q}(S, A, w) \right]
-$$
+```
 
 ### 5.2 关键技术
 

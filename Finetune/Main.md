@@ -10,9 +10,9 @@
 
 给定带标注的数据集 $D$, SFT 的目标如下:
 
-$$
+```math
 \mathcal{L}_{SFT} = -\mathbb{E}_{(x,y) \sim \mathcal{D}} \left[ \log P_\theta(y|x) \right]
-$$
+```
 
 通过最大化该似然函数, 模型获得了明确的任务执行能力, 同时保留了一部分通用语言理解能力. 这种能力的平衡程度, 取决于微调数据规模, 优化策略以及参数更新方式等多种因素.
 
@@ -22,15 +22,15 @@ $$
 
 从形式上看, 指令微调仍然属于监督微调范式, 其数据仍然由输入与输出构成. 但关键区别在于输入不再是单一的任务实例, 而是被扩展为包含"任务描述"的结构化输入. 具体而言, 数据被组织为三元组:
 
-$$
+```math
 (instruction, x, y)
-$$
+```
 
 其中 $instruction$ 描述 **任务语义**. 在此基础上, 模型优化的目标函数可写为:
 
-$$
+```math
 L_{\text{inst}} = -\mathbb{E}_{(\text{instruction}, x, y) \sim D} \log P_\theta(y \mid \text{instruction}, x)
-$$
+```
 
 值得注意的是, 指令微调的本质仍是对模型进行 CLM 训练, 模型预测结果不仅是 output, 应为 input + output. 但 input 部分不参与 Loss 计算 (即只计算模型回复部分的 Loss, Label 设为 -100), 回复指令是以预测下一个 Token 的形式实现的.
 
@@ -64,9 +64,9 @@ $$
 
 在预训练阶段结束后，模型获得了一组初始参数 $θ_{PT}$. 在全参数微调中, 给定下游任务的目标函数, 模型网络中的所有的参数都会参与更新. 全参数微调的过程可看做求解一个与 $θ_{PT}$ 维度完全相同的增量矩阵 $Δθ$:
 
-$$
+```math
 θ_{new} = θ_{PT} + Δθ
-$$
+```
 
 #### 2.1.2 显存开销分析
 
@@ -94,9 +94,9 @@ $$
 
 多任务微调的核心在于 **联合优化**. 模型需最小化所有任务损失的加权总和. 假设模型需同时学习 $T$ 个任务, 对第 i 个任务, 其损失函数为 $\mathcal{L_i}$, 那么总损失函数 $\mathcal{L_{total}}$ 可表示为:
 
-$$
+```math
 \mathcal{L_{total}}=\sum_{i}^{T} w_i \cdot L_i(\theta_{\text{shared}}, \theta_i)
-$$
+```
 
 - **T**: task总数 (e.g., text classification, translation, QA, etc.).
 - **L_i**: 第 $i$ 个任务的损失函数 (e.g., cross-entropy loss).
@@ -115,9 +115,9 @@ $$
 
 带有温度 $T$ 的 Softmax 公式:
 
-$$
+```math
 \text{softmax}(z_i) = \frac{\exp(z_i / T)}{\sum_{j} \exp(z_j / T)}
-$$
+```
 
 - 当 T = 1 时: 这就是标准的 Softmax. 模型通常会给出一个非常极端的概率分布.
 - 当 T > 1 时: 概率分布将被"软化". 原本接近 0 的非目标类别概率会被放大, 从而暴露出模型对非目标类别的判断倾向.
@@ -126,9 +126,9 @@ $$
 
 学生模型的训练并不只依赖真实数据标签，而是同时拟合“真实标签”和“教师模型的输出”。其总损失函数 $\mathcal{L_{total}}$ 通常是两部分的加权和:
 
-$$
+```math
 \mathcal{L}_{\text{total}} = \alpha \cdot \mathcal{L}_{\text{CE}}(y, p_s) \;+\; (1 - \alpha) \cdot \mathcal{L}_{\text{KD}}(q_t, q_s)
-$$
+```
 
 - **$y$**: 数据的真实标签.
 - **$p_s$**: 学生模型在 $T=1$ 时输出的标准预测概率.
@@ -156,9 +156,9 @@ $$
 
 假设训练集总共有 $N$ 个样本, 在训练的第 $t$ 步(或第 $t$ 个 Epoch), 模型的总体损失函数 $\mathcal{L}_{\text{total}}$ 可以表示为:
 
-$$
+```math
 \mathcal{L}_{\text{total}}(\theta, t) = \sum_{i=1}^{N} v_i(t) \cdot L_i(x_i, y_i; \theta)
-$$
+```
 
 - **$\theta$**: 模型参数.
 - **$L_i$**: 第 $i$ 个样本的计算损失.

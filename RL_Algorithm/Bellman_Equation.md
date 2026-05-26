@@ -4,9 +4,9 @@
 
 对于一般的随机策略, 单步过程为:
 
-$$
+```math
 S_t \xrightarrow{A_t} R_{t+1}, S_{t+1}
-$$
+```
 
 其中:
 - $S_t$: $t$ 时刻状态
@@ -22,38 +22,38 @@ $$
 
 **状态值函数 (state value function)** 定义为给定策略 $\pi$ 下, 从状态 $s$ 出发的期望回报:
 
-$$
+```math
 v_{\pi}(s) = \mathbb{E}[G_t | S_t = s]
-$$
+```
 
 ## 2. 贝尔曼方程定义
 
 经过推导可得 **贝尔曼方程 (Bellman equation)** 的元素形式:
 
-$$
+```math
 v_{\pi}(s) = \sum_{a} \pi(a|s) \left[ \sum_{r} p(r|s,a) r + \gamma \sum_{s'} p(s'|s,a) v_{\pi}(s') \right].
-$$
+```
 
 ## 3. 贝尔曼方程的矩阵-向量形式
 
 定义策略 $\pi$ 下的期望即时奖励和状态转移概率:
 
-$$
+```math
 r_{\pi}(s) \triangleq \sum_{a} \pi(a|s) \sum_{r} p(r|s,a) r, \qquad
 p_{\pi}(s'|s) \triangleq \sum_{a} \pi(a|s) p(s'|s,a).
-$$
+```
 
 则贝尔曼方程可简写为:
 
-$$
+```math
 v_{\pi}(s) = r_{\pi}(s) + \gamma \sum_{s'} p_{\pi}(s'|s) v_{\pi}(s').
-$$
+```
 
 将所有状态的值写成向量 $\mathbf{v}_{\pi}$, 得到 **矩阵-向量形式**:
 
-$$
+```math
 \mathbf{v}_{\pi} = \mathbf{r}_{\pi} + \gamma \mathbf{P}_{\pi} \mathbf{v}_{\pi},
-$$
+```
 
 其中 $\mathbf{P}_{\pi}$ 为状态转移概率矩阵, $[\mathbf{P}_{\pi}]_{s,s'} = p_{\pi}(s'|s)$.
 
@@ -63,17 +63,17 @@ $$
 
 - **闭式解 (Closed-form solution)**:
 
-$$
+```math
   \mathbf{v}_{\pi} = (I - \gamma \mathbf{P}_{\pi})^{-1} \mathbf{r}_{\pi}.
-$$
+```
 
   矩阵 $I - \gamma \mathbf{P}_{\pi}$ 可逆.
 
 - **迭代解法 (Iterative solution)**:
 
-$$
+```math
   \mathbf{v}_{k+1} = \mathbf{r}_{\pi} + \gamma \mathbf{P}_{\pi} \mathbf{v}_{k}.
-$$
+```
 
   初始时随机选择一个值作为 $\mathbf{v}_{k}$ 进行迭代, 可以证明当 $k \to \infty$ 时, $\mathbf{v}_k$ 最终会收敛到 $\mathbf{v}_{\pi}$ (因为 $\gamma < 1$, 误差按 $\gamma^k$ 衰减).
 
@@ -83,16 +83,16 @@ $$
 
 **动作值函数 (action value function)** 定义为在状态 $s$ 采取动作 $a$ 后的期望回报:
 
-$$
+```math
 q_{\pi}(s,a) = \mathbb{E}[G_t | S_t = s, A_t = a].
-$$
+```
 
 **状态值与动作值的关系:**
 
-$$
+```math
 v_{\pi}(s) = \sum_{a} \pi(a|s) q_{\pi}(s,a). \tag{1}
-$$
+```
 
-$$
+```math
 q_{\pi}(s,a) = \sum_{r} p(r|s,a) r + \gamma \sum_{s'} p(s'|s,a) v_{\pi}(s'). \tag{2}
-$$
+```

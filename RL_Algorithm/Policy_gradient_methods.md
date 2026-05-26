@@ -29,9 +29,9 @@
 - **表达式 1**: $\bar{r}_{\pi} \doteq \sum_{s\in \mathcal{S}} d_{\pi}(s) r_{\pi}(s) = \mathbb{E}[r_{\pi}(S)]$,  其中 $S \sim d_{\pi}$.
 - **表达式 2**: 沿着一条轨迹的平均单步奖励:
 
-$$
+```math
   \bar{r}_{\pi} = \lim_{n\to\infty} \frac{1}{n} \mathbb{E}\left[ \sum_{t=0}^{n-1} R_{t+1} | S_0 = s_0 \right]
-$$
+```
 
 - **备注**:
   - $\bar{r}_{\pi}$ 是即时奖励的加权平均.
