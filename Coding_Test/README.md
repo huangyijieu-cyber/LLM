@@ -1,15 +1,16 @@
 # Coding Test Interview Suite
 
-这个目录用于深度学习面试手撕练习。`Coding_Test/Examples` 里保留标准答案风格；每个正式题目目录是函数式单测练习题，更接近真实面试里“给函数签名、写核心逻辑”的形式。
+这个目录用于深度学习面试手撕练习。`Coding_Test/Examples` 保存标准答案；正式题目的接口、Tensor shape 和返回格式与对应标准答案完全一致。
 
 ## 目录结构
 
 每道题都有一个独立目录，例如 `MoE`：
 
 - `PROBLEM.md`：题目描述、函数输入输出格式、样例。
-- `MoE.py`：你要手写的做题文件，只包含函数签名和待实现函数。
-- `cases.json`：5 组测试数据和期望返回值。
-- `run_tests.py`：本题测试脚本，会 import `MoE.py` 里的函数并直接调用。
+- `MoE.py`：你要补全的 PyTorch 模块或函数。
+- `run_tests.py`：本题测试入口。
+
+公共测试器会加载对应的 `Examples` 标准实现。对于 `nn.Module` 题目，测试器会给你的实现和标准实现加载相同的 `state_dict`，再使用相同 Tensor 输入对拍。
 
 ## 使用方式
 
@@ -34,7 +35,7 @@ python run_all_tests.py
 
 所有题目都采用同一种模式：
 
-- 你只实现题目文件中的指定函数。
-- 测试脚本会直接 import 该函数并传入 Python list/dict。
-- 函数返回 Python 标量、list 或 dict。
-- 浮点误差：测试器允许 `1e-5` 误差。
+- 使用 PyTorch Tensor，不再使用 JSON/list 模拟张量。
+- 类名、函数名、初始化参数、forward 参数及返回类型必须与对应 `Examples` 一致。
+- 每题包含 5 组固定随机种子的测试；GRPO 会分别测试三个公开函数。
+- 浮点结果使用 `rtol=1e-5, atol=1e-5` 比较。

@@ -1,6 +1,25 @@
-﻿def lora_linear(x, weight, lora_a, lora_b, alpha):
-    """
-    待实现：实现 LoRA Linear 前向计算。
-    参数和返回值说明见同目录 PROBLEM.md。
-    """
-    raise NotImplementedError("待实现：请先完成 lora_linear")
+import math
+import torch
+import torch.nn as nn
+
+
+class LoRALinear(nn.Module):
+    def __init__(self, in_features, out_features, rank=8, alpha=1.0, dropout=0.0):
+        super().__init__()
+        self.weight = nn.Linear(in_features, out_features, bias=False)
+        self.weight.requires_grad = False
+        self.lora_a = nn.Linear(in_features, rank, bias=False)
+        self.lora_b = nn.Linear(rank, out_features, bias=False)
+        self.alpha = alpha
+        self.rank = rank
+        self.scaling = self.alpha / rank
+        self.dropout = nn.Dropout(dropout)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        """按照标准答案初始化 A，并将 B 初始化为零。"""
+        raise NotImplementedError("请实现 LoRALinear.reset_parameters")
+
+    def forward(self, x):
+        """实现原始线性输出与 LoRA 增量输出之和。"""
+        raise NotImplementedError("请实现 LoRALinear.forward")

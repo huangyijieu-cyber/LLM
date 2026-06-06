@@ -1,40 +1,34 @@
-﻿# GRPO_Loss
+# GRPO 相关函数
 
-## 题目
+## 题目要求
 
-实现 GRPO Loss
+请补全 `GRPO_Loss.py` 中的实现，使公开接口、参数含义、Tensor shape、返回值以及计算结果与对应的 `Coding_Test/Examples` 标准答案完全一致。
 
-## 背景
+## 标准接口
 
-这道题按 `Coding_Test/Examples` 中对应标准答案的前向逻辑构造，适合互联网大厂面试中的手撕深度学习基础模块。
-
-## 要求
-
-先对每组 rewards 做组内标准化优势 A=(R-mean)/(std+1e-8)，std 按样本标准差 N-1；再套 PPO clip，可选加 beta*ref_kl。
-
-只需要实现题目文件中的指定函数。测试脚本会直接 import 你的函数，并传入 Python list/dict；你不需要处理标准输入输出。
-
-## 函数输入输出
-
-输入字段：rewards, old_log_probs, new_log_probs, clip_epsilon, beta, ref_kl(可选)。输出标量。
-
-所有浮点输出保留合理精度即可，评测允许 `1e-5` 误差。
-
-## 样例函数输入
-
-```json
-{"rewards":[[1,2]],"old_log_probs":[[0,0]],"new_log_probs":[[0,0]],"clip_epsilon":0.2}
+```python
+compute_grpo_advantages / grpo_loss / compute_kl_penalty
 ```
 
-## 样例期望返回
+题目使用 PyTorch。测试器会实例化你的实现和 `Examples` 标准实现，将相同的 `state_dict` 加载到两个模块中，再使用相同的 Tensor 输入进行对拍。
 
-```json
-0.0
+## 调用样例
+
+```python
+import torch
+
+advantages = compute_grpo_advantages(torch.randn(2, 4))
+loss = grpo_loss(torch.randn(8), torch.randn(8), torch.randn(8))
 ```
 
-## 使用方式
+## 测试范围
 
-在当前目录实现 `GRPO_Loss.py` 中的待实现函数，然后运行：
+- 共包含 5 组固定随机种子的测试样例。
+- 模块题覆盖不同 batch、序列长度、维度以及 mask/交叉注意力等场景。
+- 浮点结果使用 `rtol=1e-5, atol=1e-5` 比较。
+- 返回类型与 `Examples` 不一致也会判错。
+
+## 运行
 
 ```powershell
 python run_tests.py

@@ -1,6 +1,10 @@
-﻿def sft_loss(logits, labels, prompt_lengths):
-    """
-    待实现：实现 SFT Loss。
-    参数和返回值说明见同目录 PROBLEM.md。
-    """
-    raise NotImplementedError("待实现：请先完成 sft_loss")
+import torch.nn as nn
+
+
+class SFTLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, logits, labels, prompt_lengths):
+        """屏蔽 prompt，执行 next-token shift，并计算交叉熵。"""
+        raise NotImplementedError("请实现 SFTLoss.forward")
