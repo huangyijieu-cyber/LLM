@@ -46,6 +46,6 @@ GLU 相比于传统的 FFN 的两个矩阵 ($W_{up}, W_{down}$),多了一个门�
 
 而在标准 Transformer 中,隐藏层宽度 $h$ 通常是输入维度的 4 倍,故带有门控的模型中,隐藏层宽度通常为:
 
-```math
+$$
 d_{ff} \approx \frac{2}{3} \times 4d = \frac{8}{3}d
-```
+$$

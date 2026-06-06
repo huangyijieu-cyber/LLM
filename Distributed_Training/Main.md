@@ -73,9 +73,9 @@
 
 我们从分布式梯度更新入手, 随机梯度下降 (SGD) 算法的核心更新公式为:
 
-```math
+$$
 w_{t+1} = w_t - \eta \frac{1}{B} \sum_{i=1}^{B} \nabla L(w_t; x_i, y_i)
-```
+$$
 
 这个公式的本质是: 对一个批次中的所有样本计算梯度, **将这些梯度累加起来**, 然后用这个聚合后的梯度来更新模型参数.
 
@@ -179,22 +179,22 @@ PipeDream 就是解决缓存 activation 的份数问题, 使得 activation 的�
 
 1. **行并行**: 将权重 A 按照行分割成多份: 对于
 
-```math
+$$
 [X_1, X_2, \dots, X_N] \begin{bmatrix}
    A_1 \\
    A-2 \\
    \vdots \\
    A_N
    \end{bmatrix}
-```
+$$
 
    中每一份 X_i * A_i, 都可分配一个 GPU 进行计算, 最后将在多个 GPU 上计算得到的结果进行拼接, 即可得到最终的结果.
 
 2. **列并行**: 将 A 照列来分割为多份: 对于
 
-```math
+$$
 [X][A_1, A_2, \dots, A_N]
-```
+$$
 
    中 X * A_i 都可分配一个 GPU 进行计算, 最后将在多个 GPU 上计算得到的结果进行拼接, 即可得到最终的结果.
 
@@ -230,9 +230,9 @@ PipeDream 就是解决缓存 activation 的份数问题, 使得 activation 的�
 
 对于一个标准的 Transformer 层, **在不进行任何优化的情况下**, 需要保存的激活内存大小可以由以下公式近似：
 
-```math
+$$
 \text{Activations memory per layer} = sbh \left(34 + 5\frac{as}{h}\right)
-```
+$$
 
 这个公式可以拆解为两个主要部分：
 
@@ -243,9 +243,9 @@ PipeDream 就是解决缓存 activation 的份数问题, 使得 activation 的�
 
 但即使如此, `sbh` 项依然占据大量显存. 而在应用张量并行后, 该部分激活内存的公式变为:
 
-```math
+$$
 \text{Activations memory per layer} = sbh \left(10 + \frac{24}{t} + 5\frac{as}{ht}\right)
-```
+$$
 
 1. **$\frac{24}{t}$ 和 $5\frac{as}{ht}$ 项**: 这些项都除以了张量并行度 `t`. 这代表可被 TP 有效切分的计算.
 2. **顽固的 `10` 项**: 这一项 **没有** 被 `t` 整除. 这意味着其不随我们 GPU 并行度的增加而减少, 成为顽固的性能瓶颈.

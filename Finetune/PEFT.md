@@ -27,9 +27,9 @@ Adapter Tuning 对输入文本序列 x 不做任何修改. 它直接修改大模
 
 故 Adapter 计算方式可直观表示为:
 
-```math
+$$
 h' = h + Adapter(h)
-```
+$$
 
 Adapter 作用于每一层的中间表示, 直接对隐藏状态进行变换.
 
@@ -53,9 +53,9 @@ Prefix Tuning 的核心思想是, 冻结 PLM 中的所有参数, 仅在输入 To
 
 如果只把 Prefix 加在最底层的输入 Embedding 层, 那便成了 Prompt Tuning. 而 Prefix Tuning 直接在 Transformer 的每一层都硬编码了这段 Prefix. 具体实现方式是通过在 $K$ 和 $V$ 矩阵前拼接独立的可训练向量 $P_K$ 和 $P_V$:
 
-```math
+$$
 K' = [P_K; K], V' = [P_V; V]
-```
+$$
 
 #### 1.2.3 训练更新方法
 
@@ -63,9 +63,9 @@ K' = [P_K; K], V' = [P_V; V]
 
 Prefix Tuning 引入了一个低维的 Embedding 矩阵 ($P'$) 和一个两层的 $MLP$ 层:
 
-```math
+$$
 P_K, P_V = MLP(P')
-```
+$$
 
 训练阶段, 通过利用 $MLP$ 将小矩阵 $P'$ 映射成高维的 $P_K$, $P_V$, 并将它们拼接到冻结的 PLM 的每一层中, 以此来进行前向传播和反向传播, **只更新 $P'$ 和 $MLP$ 层的权重**. (**注意, $MLP$ 的权重是每层共享的**)
 
@@ -87,9 +87,9 @@ Prompt Tuning 在某种程度上类似于直接构造特定任务的 Prompt 进�
 
 不同于 Prefix Tuning 在 Transformer 的每一层都拼接前缀, Prompt Tuning 仅在最底层的 Embedding 层进行修改. 具体的视线方式是在文本转换成的向量序列 $E_x$ 前进行拼接 $P_e$:
 
-```math
+$$
 X_{input} = [P_e; E_x]
-```
+$$
 
 随后送入模型中.
 
@@ -119,9 +119,9 @@ Prompt Tuning 强制将 $P_e$ 放在句首, 而 P-Tuning 引入了"模式 (Patte
 
 对于生成的 Virtual Token 序列 $h_1, h_2, \dots h_k$, 按照模版进行拼接后得到:
 
-```math
+$$
 X_{input} = [h_1, \dots h_i, E_x, h_{i+1}, \dots h_k, E_{mask}]
-```
+$$
 
 #### 1.4.3 训练更新方式
 
@@ -155,9 +155,9 @@ P-Tuning 并没有直接去更新 Embedding 层那些 Virtual Token 的 Embeddin
 
 P-Tuning v2 同 Prefix Tuning 一样, 选择将 prompt 向量拼接到每一层的 $K$, $V$ 矩阵前, 而不在 Embedding 层显式添加额外的 Virtual Token:
 
-```math
+$$
 K' = [P_K; K], V' = [P_V; V]
-```
+$$
 
 同时在模型最顶层输出的 Prompt Token 位置上, 外接一个随机初始化的 **线性分类头**.
 
@@ -219,9 +219,9 @@ LoRA 通常被应用于注意力机制中的 **Query** ($W_q$) 和 **Value** ($W
    - 增量权重 (可训练): 计算 $BAx$.
 3. 将两条路径结果相加, 并在增量权重处乘以一个缩放因子, 即可得到 LoRA 层最终输出:
 
-```math
+$$
 h = W_ox + \frac{α}{r}BAx
-```
+$$
 
    其中 α 是一个常数超参数. 引入 $\frac{α}{r}$ 的目的是在改变秩 r 的大小时, 减少对学习率等超参数的重新调整需求.
 
@@ -239,9 +239,9 @@ $A, B$ 权重是靠两个线性层实现的, $A$ 将维度 k 映射到低秩 r �
 
 在训练结束后, 只需将训练好的低秩矩阵相乘并按缩放因子缩放后, 直接加和到原始权重上, 即可得到一个新的合并后的权重矩阵 $W_{merged}$:
 
-```math
+$$
 W_{merged} = W_o + \frac{α}{r}BA
-```
+$$
 
 然后将 LoRA 旁路丢弃即可. 至此, 模型在推理时的网络结构, 层数, 计算步骤与微调前完全一致, 实现了绝对的 **零推理延迟**.
 
@@ -259,9 +259,9 @@ AdaLoRA (Adaptive LoRA) 是对 LoRA 的改进, 其核心思想是 **动态调整
 
 AdaLoRA 引入了一个 **可训练的门控机制** 来控制每层实际使用的秩:
 
-```math
+$$
 ΔW=B⋅(A⊙Gate)
-```
+$$
 
 其中 $Gate \in [0,1]^{r}$ 是按 **秩维度** 作用的缩放向量, **即每个 Gate[i] 对应一个低秩通道, 对 $A[i, :]$ 和 $B[:, i]$ 整列 (或整行) 进行缩放. 这种设计保证了 AdaLoRA 的"自适应秩"特性, 而不仅仅是稀疏化矩阵元素. $Gate$ 初始化为全 1.
 
@@ -293,8 +293,8 @@ QLoRA (Quantized LoRA) 是在 LoRA 基础上结合 **低比特量化** 的参数
 
 训练过程和 LoRA 基本一致. 但对增量矩阵 $ΔW$, 由于其为低秩矩阵, 参数量远小于原模型权重, 故对其 **保持浮点计算**, 以确保微调的精度和梯度稳定性.
 
-```math
+$$
 h=Dequantize(W_{quant}​)⋅x+ΔW_{float}​⋅x
-```
+$$
 
 训练结束后, 直接将 LoRA 增量矩阵 $ΔW_{float}$ 与量化矩阵 $W_{quant}$ 合并. 用于后续推理计算.

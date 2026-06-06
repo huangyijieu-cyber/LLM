@@ -15,23 +15,23 @@ GRPO 是一种专为大规模语言模型设计的策略梯度算法, 用于解�
 在 PPO 中, 我们依赖 Critic 来预测 Baseline. 但在 GRPO 中, Baseline 是通过 **组内比较** 得出的.
 对于每一个输入提示(Prompt) $x$, 我们让当前的策略模型 $\pi_\theta$ 独立生成 $G$ 个不同的回答:
 
-```math
+$$
 \{y_1, y_2, \dots, y_G\} \sim \pi_\theta(y|x)
-```
+$$
 
 然后, 使用奖励模型(或规则)对这 $G$ 个回答分别打分, 得到一组原始奖励:
 
-```math
+$$
 \{r_1, r_2, \dots, r_G\}
-```
+$$
 
 ### 2.2 组相对优势计算 (Group Relative Advantage)
 
 得到了这 $G$ 个回答的得分后, GRPO 不使用复杂的 GAE 计算, 而是直接对这组得分进行 **标准化处理(Z-Score)**, 得到每个回答的优势 $\hat{A}_i$:
 
-```math
+$$
 \hat{A}_i = \frac{r_i - \text{mean}(r_{1..G})}{\text{std}(r_{1..G})}
-```
+$$
 
 - **$\text{mean}(r_{1..G})$**: 这 $G$ 个回答得分的平均值(这就是 GRPO 的 Baseline).
 - **$\text{std}(r_{1..G})$**: 这 $G$ 个得分的标准差.
@@ -41,9 +41,9 @@ GRPO 是一种专为大规模语言模型设计的策略梯度算法, 用于解�
 
 与 PPO 将 KL 散度作为每一步的"扣分项"叠加在奖励上不同, GRPO 直接将 KL 散度作为正则化项加在了最后的 **损失函数** 中. 为了保证梯度的无偏估计, GRPO 使用了如下精确的 KL 散度估计公式:
 
-```math
+$$
 D_{KL}(\pi_\theta || \pi_{ref}) = \frac{\pi_{ref}(a_t|s_t)}{\pi_\theta(a_t|s_t)} - \log \frac{\pi_{ref}(a_t|s_t)}{\pi_\theta(a_t|s_t)} - 1
-```
+$$
 
 - 这个估计算法相比直接计算 $\log(\pi_\theta / \pi_{ref})$ 更加稳定, 能防止 KL 散度在训练过程中变成负数.
 
@@ -51,9 +51,9 @@ D_{KL}(\pi_\theta || \pi_{ref}) = \frac{\pi_{ref}(a_t|s_t)}{\pi_\theta(a_t|s_t)}
 
 合并上面的优势和 KL 惩罚, 我们得到了 GRPO 最终的截断目标函数(最大化该函数):
 
-```math
+$$
 L_{GRPO}(\theta) = \mathbb{E} \left[\min\Big(\rho_{i,t} \hat{A}_i, \; \text{clip}(\rho_{i,t}, 1-\epsilon, 1+\epsilon) \hat{A}_i\Big) - \beta D_{KL} \right]
-```
+$$
 
 - **$\rho_{i,t}$**: 重要性采样比率 $\frac{\pi_\theta(a_{i,t}|s_{i,t})}{\pi_{\theta_{old}}(a_{i,t}|s_{i,t})}$ (同 PPO).
 - **$\hat{A}_i$**: 刚刚算出的组内相对优势. 注意, 同一个句子 $y_i$ 中的所有 token 共享这个句子级别的优势.

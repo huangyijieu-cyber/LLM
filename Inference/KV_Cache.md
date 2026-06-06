@@ -30,9 +30,9 @@ KV Cache（键值缓存） 是大模型推理中最基础的优化技术，其�
 
 公式如下：
 
-```math
+$$
 M_{KV} = 2 \times N_{layers} \times N_{heads} \times D_{head} \times L_{seq} \times B_{batch} \times P_{size}
-```
+$$
 
 随着Batch Size的增加（为了提高吞吐量）和Sequence Length的延长（长文档分析），KV Cache的体积往往会超过模型权重本身，成为限制并发量的主要瓶颈。这直接催生了注意力架构的演进。
 

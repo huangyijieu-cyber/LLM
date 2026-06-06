@@ -17,9 +17,9 @@ DPO 不需要单独的 Reward 模型和 Critic 模型, 这是因为在数学原�
 
 在 PPO 中, 我们需要一个显式的奖励模型 $R_\phi(x,y)$. 而 DPO 的作者通过数学推导发现, 在 KL 散度约束下, RLHF 的最优策略有一个闭式解(Closed-form solution). 通过将这个闭式解反转, 我们可以用 **策略模型的概率** 直接表达出 **隐式的奖励值**:
 
-```math
+$$
 r(x, y) = \beta \log \frac{\pi_\theta(y|x)}{\pi_{ref}(y|x)} + \beta \log Z(x)
-```
+$$
 
 - **$r(x, y)$**: 隐式奖励值.
 - **$\pi_\theta$ (策略模型)** 与 **$\pi_{ref}$ (参考模型)**: 模型对回答 $y$ 的生成概率.
@@ -30,9 +30,9 @@ r(x, y) = \beta \log \frac{\pi_\theta(y|x)}{\pi_{ref}(y|x)} + \beta \log Z(x)
 
 对于一个 Prompt $x$, 给定一对回答: 被人类偏好的回答 $y_w$ (win) 和被拒绝的回答 $y_l$ (lose). 人类偏好 $y_w$ 胜过 $y_l$ 的概率通常用 Bradley-Terry (BT) 模型表示为:
 
-```math
+$$
 P(y_w \succ y_l | x) = \sigma \big( r(x, y_w) - r(x, y_l) \big)
-```
+$$
 
 - **$\sigma$**: Sigmoid 函数.
 
@@ -42,9 +42,9 @@ P(y_w \succ y_l | x) = \sigma \big( r(x, y_w) - r(x, y_l) \big)
 
 将 2.1 中的隐式奖励公式代入 2.2 的 BT 模型中, 由于 $Z(x)$ 是只与 prompt $x$ 有关的常数, 刚好在减法中被消去. 最终我们得到了极其简洁的 **DPO 目标函数(最小化该负对数似然损失)**:
 
-```math
+$$
 L_{DPO}(\theta) = - \mathbb{E}_{(x, y_w, y_l) \sim D} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w|x)}{\pi_{ref}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{ref}(y_l|x)} \right) \right]
-```
+$$
 
 - **$\beta \log \frac{\pi_\theta(y_w|x)}{\pi_{ref}(y_w|x)}$**: 模型给偏好回答 $y_w$ 的隐式奖励.
 - **$\beta \log \frac{\pi_\theta(y_l|x)}{\pi_{ref}(y_l|x)}$**: 模型给拒绝回答 $y_l$ 的隐式奖励.
@@ -80,9 +80,9 @@ L_{DPO}(\theta) = - \mathbb{E}_{(x, y_w, y_l) \sim D} \left[ \log \sigma \left( 
 1. 计算两者隐式奖励的差值(Margin): $\Delta \hat{r} = \hat{r}_w - \hat{r}_l$
 2. 将差值通过 Sigmoid 函数并取对数, 得到 DPO Loss:
 
-```math
+$$
 Loss = - \log \sigma(\Delta \hat{r})
-```
+$$
 
 3. **反向传播** 使用优化器(如 AdamW)更新策略模型 $\pi_\theta$ 的参数, 使得 $\Delta \hat{r}$ 尽可能大.
 

@@ -70,15 +70,15 @@ WordPiece算法由Google开发，是BERT模型的核心。它的整体流程与B
 
 数据似然的增加量近似为：
 
-```math
+$$
 \Delta L \approx \log \frac{P(xy)}{P(x)P(y)}
-```
+$$
 
 即：
 
-```math
+$$
 \text{PMI}(x, y) = \frac{P(xy)}{P(x)P(y)}
-```
+$$
 
 的log形式. 由于 $\log$ 的单调性，这等价于选择 **点互信息（PMI）最高** 的单元对。
 
@@ -95,9 +95,9 @@ Unigram模型假设每个Subword的出现是独立的。一个句子 $X$ 被切�
 
 的概率为：
 
-```math
+$$
 P(x) = \prod_{i=1}^{m} P(x_i)
-```
+$$
 
 其中 $P(x_i)$ 是子词 $x_i$ 的发生概率。
 

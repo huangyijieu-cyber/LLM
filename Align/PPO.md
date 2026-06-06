@@ -19,12 +19,12 @@ PPO 是一种策略梯度(Policy Gradient)方法, 用于解决强化学习中"�
 
 我们必须先算出生成每一个 Token $a_t$ 到底拿了多少分. 在 RLHF 中, 奖励函数的设计如下:
 
-```math
+$$
 r_t = \begin{cases}
 - \beta \log \frac{\pi_\theta(a_t|s_t)}{\pi_{ref}(a_t|s_t)}, & \text{当 } t < T \text{ (句子未结束)} \\
 R_\phi(x, y) - \beta \log \frac{\pi_T(a_T|s_T)}{\pi_{ref}(a_T|s_T)}, & \text{当 } t = T \text{ (生成最后一个词)}
 \end{cases}
-```
+$$
 
 - **$\pi_\theta$ (Actor 模型)**: 当前正在训练的模型的生成概率.
 -  **$\pi_{ref}$ (Reference 模型)**: 冻结的初始模型的生成概率.
@@ -37,9 +37,9 @@ R_\phi(x, y) - \beta \log \frac{\pi_T(a_T|s_T)}{\pi_{ref}(a_T|s_T)}, & \text{当
 
 **1. 首先计算 TD Error $\delta_t$:**
 
-```math
+$$
 \delta_t = r_t + \gamma V_\omega(s_{t+1}) - V_\omega(s_t)
-```
+$$
 
 *   **$V_\omega$ (Critic 模型)**: 参数为 $\omega$ 的价值模型. 它预测在状态 $s_t$ 下, 未来能拿到的总奖励.
 *   $r_t$: 刚才算出的这一步的实际奖励.
@@ -48,9 +48,9 @@ R_\phi(x, y) - \beta \log \frac{\pi_T(a_T|s_T)}{\pi_{ref}(a_T|s_T)}, & \text{当
 
 **2. 计算 GAE 优势函数 $\hat{A}_t$:**
 
-```math
+$$
 \hat{A}_t = \sum_{l=0}^{T-t-1} (\gamma \lambda)^l \delta_{t+l}
-```
+$$
 
 *   $\lambda$: GAE 的平滑参数(通常设为 0.95).
 *   这个公式的意义在于为了让计算更稳, 我们不仅看当前这一步的 $\delta_t$, 还把未来几步的 $\delta$ 也按比例($\gamma \lambda$)加进来, 得到一个更宏观的 **"动作优势 $\hat{A}_t$ "**.
@@ -61,18 +61,18 @@ R_\phi(x, y) - \beta \log \frac{\pi_T(a_T|s_T)}{\pi_{ref}(a_T|s_T)}, & \text{当
 
 **1. 定义概率比值比 $ratio$:**
 
-```math
+$$
 \rho_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{old}}(a_t|s_t)}
-```
+$$
 
 *   $\pi_\theta$ 是当前参数下生成该词的概率.
 *   $\pi_{\theta_{old}}$ 是本次参数更新 **前** 生成该词的概率.
 
 **2. Actor 的截断目标函数(最大化该函数):**
 
-```math
+$$
 L^{CLIP}(\theta) = \hat{\mathbb{E}}_t \left[ \min\Big(\rho_t(\theta) \hat{A}_t, \; \text{clip}\big(\rho_t(\theta), 1-\epsilon, 1+\epsilon\big) \hat{A}_t\Big) \right]
-```
+$$
 
 *   **$\hat{A}_t$**: 就是我们在第二步用 **Critic** 算出来的优势.
 *   **$\epsilon$**: 截断超参数(通常为 0.2).
@@ -85,9 +85,9 @@ L^{CLIP}(\theta) = \hat{\mathbb{E}}_t \left[ \min\Big(\rho_t(\theta) \hat{A}_t, 
 
 **Critic 的目标函数(最小化该函数):**
 
-```math
+$$
 L^{VF}(\omega) = \hat{\mathbb{E}}_t \left[ \Big( V_\omega(s_t) - V_t^{target} \Big)^2 \right]
-```
+$$
 
 *   **$V_\omega(s_t)$ (Critic 模型)**: Critic 当前给出的预测值.
 *   **$V_t^{target}$**: 实际目标值. 通常通过 $V_t^{target} = \hat{A}_t + V_{\omega_{old}}(s_t)$ 来计算(即实际获得的总回报近似值).
@@ -120,9 +120,9 @@ L^{VF}(\omega) = \hat{\mathbb{E}}_t \left[ \Big( V_\omega(s_t) - V_t^{target} \B
 
 2. **参考模型 $\pi_\mathrm{ref}$** 对每个生成动作提供概率分布, 用于计算 KL 散度惩罚:
 
-```math
+$$
     r_t = R(y) - \beta \cdot \log \frac{\pi_\theta(a_t|s_t)}{\pi_\mathrm{ref}(a_t|s_t)}
-```
+$$
 
 3. 结合奖励和 KL 惩罚, 得到每一步的即时奖励 $r_t$, 形成完整的回报序列.
 
@@ -132,21 +132,21 @@ L^{VF}(\omega) = \hat{\mathbb{E}}_t \left[ \Big( V_\omega(s_t) - V_t^{target} \B
 
 2. 计算 TD error:
 
-```math
+$$
     \delta_t = r_t + \gamma V_\omega(s_{t+1}) - V_\omega(s_t)
-```
+$$
 
 3. 使用 GAE 整合 $\delta_t$, 得到每一步的优势函数:
 
-```math
+$$
     \hat{A}_t = \sum_{l=0}^{T-t} (\gamma \lambda)^l \delta_{t+l}
-```
+$$
 
 4. 计算 **Critic 的训练目标**:
 
-```math
+$$
     V_\mathrm{target} = \hat{A}_t + V_\omega(s_t)
-```
+$$
 
 ### 3.5 策略与价值更新(PPO Update Phase)
 
@@ -156,9 +156,9 @@ L^{VF}(\omega) = \hat{\mathbb{E}}_t \left[ \Big( V_\omega(s_t) - V_t^{target} \B
     - 计算重要性采样比率:  $\rho_t = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_\mathrm{old}}(a_t|s_t)}$
     - 构建 PPO 截断目标函数:
 
-```math
+$$
         L^\mathrm{CLIP}(\theta) = \mathbb{E}_t\big[ \min(\rho_t \hat{A}_t, \mathrm{clip}(\rho_t, 1-\epsilon, 1+\epsilon) \hat{A}_t) \big]
-```
+$$
 
     - 最大化 $L^\mathrm{CLIP}(\theta)$, 保证策略更新幅度受限, 防止过度偏离参考模型.
 
@@ -166,9 +166,9 @@ L^{VF}(\omega) = \hat{\mathbb{E}}_t \left[ \Big( V_\omega(s_t) - V_t^{target} \B
 
     - 通过均方误差(MSE Loss)优化:
 
-```math
+$$
         L^\mathrm{V}(\omega) = \mathbb{E}_t \big[ (V_\omega(s_t) - V_\mathrm{target})^2 \big]
-```
+$$
 
 - **反向传播** 使用优化器(如 AdamW)同时更新策略模型 $\theta$ 与价值模型 $\omega$.
 
