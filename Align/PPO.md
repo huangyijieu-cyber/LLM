@@ -26,6 +26,7 @@ R_\phi(x, y) - \beta \log \frac{\pi_T(a_T|s_T)}{\pi_{ref}(a_T|s_T)}, & \text{当
 \end{cases}
 $$
 
+其中:
 - **$\pi_\theta$ (Actor 模型)**: 当前正在训练的模型的生成概率.
 -  **$\pi_{ref}$ (Reference 模型)**: 冻结的初始模型的生成概率.
 -  **$\log \frac{\pi_\theta}{\pi_{ref}}$**: 这就是 **KL 散度惩罚项**. 如果 Actor 生成的词偏离 Reference 太远, 这个值会变大. 乘以系数 $-\beta$ 后, 就会变成负分(扣分).
