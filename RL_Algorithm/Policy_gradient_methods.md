@@ -1,94 +1,122 @@
-﻿# 绛栫暐姊害鏂规硶 (Policy gradient methods)
+# 策略梯度方法 (Policy gradient methods)
 
-## 1. 鏍稿績鎬濇兂: 浠庡熀浜庡€煎埌鍩轰簬绛栫暐
-**涔嬪墠 (琛ㄦ牸鍨嬫柟娉?**: 绛栫暐 $\pi(a|s)$ 瀛樺偍鍦ㄨ〃鏍间腑, 鐩存帴鏌ヨ〃鑾峰彇鍔ㄤ綔姒傜巼, 閫氳繃鐩存帴淇敼琛ㄦ牸鏉＄洰鏉ユ洿鏂扮瓥鐣?
+## 1. 核心思想: 从基于值到基于策略
+**之前 (表格型方法)**: 策略 $\pi(a|s)$ 存储在表格中, 直接查表获取动作概率, 通过直接修改表格条目来更新策略.
 
-**鐜板湪 (鍑芥暟鍨嬫柟娉?**: 绛栫暐鐢ㄤ竴涓弬鏁板寲鐨勫嚱鏁拌〃绀?$\pi(a|s,\theta)$ (渚嬪绁炵粡缃戠粶), 鍏朵腑 $\theta \in \mathbb{R}^{m}$ 鏄弬鏁板悜閲?
-  - **浼樺娍**: 褰撶姸鎬佺┖闂村緢澶ф椂, 琛ㄦ牸鏂规硶鍦ㄥ瓨鍌ㄥ拰娉涘寲鏂归潰鏁堢巼浣庝笅, 鑰屽嚱鏁拌〃绀烘硶鏇村叿浼樺娍.
-- **鍏抽敭杞彉**: 鍦ㄨ〃鏍兼儏鍐典笅, 濡傛灉绛栫暐 $\pi$ 鑳戒娇姣忎釜鐘舵€佸€兼渶澶у寲, 閭ｄ箞瀹冨氨鏄渶浼樼殑.
-- **鏇存柊鏂瑰紡**: 绛栫暐涓嶈兘閫氳繃鏀硅〃鏍兼潯鐩潵鏇存柊, 鍙兘閫氳繃鏀瑰彉鍙傛暟 $\theta$ 鏉ユ洿鏂?
+**现在 (函数型方法)**: 策略用一个参数化的函数表示 $\pi(a|s,\theta)$ (例如神经网络), 其中 $\theta \in \mathbb{R}^{m}$ 是参数向量.
+  - **优势**: 当状态空间很大时, 表格方法在存储和泛化方面效率低下, 而函数表示法更具优势.
+- **关键转变**: 在表格情况下, 如果策略 $\pi$ 能使每个状态值最大化, 那么它就是最优的.
+- **更新方式**: 策略不能通过改表格条目来更新, 只能通过改变参数 $\theta$ 来更新.
 
-## 2. 瀹氫箟鏈€浼樼瓥鐣ョ殑搴﹂噺 (Metrics)
-涓轰簡鐢ㄦ搴︽柟娉曚紭鍖栫瓥鐣? 鎴戜滑闇€瑕佸畾涔夊彲浠ユ渶澶у寲鐨勬爣閲忕洰鏍囧嚱鏁?$J(\theta)$. 鏍规嵁涓嶅悓鐨勪换鍔¤缃? 涓昏鏈変袱绉嶅害閲忔柟寮?
+## 2. 定义最优策略的度量 (Metrics)
+为了用梯度方法优化策略, 我们需要定义可以最大化的标量目标函数 $J(\theta)$. 根据不同的任务设置, 主要有两种度量方式.
 
-### 2.1 搴﹂噺涓€: 骞冲潎鍊?(Average Value)
-- **琛ㄨ揪寮?1**: $\bar{v}_{\pi} \doteq \sum_{s\in \mathcal{S}} d(s) v_{\pi}(s)$
+### 2.1 度量一: 平均值 (Average Value)
+- **表达式 1**: $\bar{v}_{\pi} \doteq \sum_{s\in \mathcal{S}} d(s) v_{\pi}(s)$
 
-- **琛ㄨ揪寮?2**: $\bar{v}_{\pi} = \mathbb{E}_{S \sim d}[v_{\pi}(S)]$
+- **表达式 2**: $\bar{v}_{\pi} = \mathbb{E}_{S \sim d}[v_{\pi}(S)]$
 
-- **琛ㄨ揪寮?3**: $\bar{v}_{\pi} = \lim_{n\to\infty} \mathbb{E} \left[ \sum_{t=0}^{n} \gamma^{t} R_{t+1} \right]$
+- **表达式 3**: $\bar{v}_{\pi} = \lim_{n\to\infty} \mathbb{E} \left[ \sum_{t=0}^{n} \gamma^{t} R_{t+1} \right]$
 
-- **鏉冮噸鍒嗗竷 $d$ 鐨勯€夋嫨**:
-  - **鎯呭喌 1 (涓庣瓥鐣ユ棤鍏? $d_0$)**: 姊害瀹规槗璁＄畻, $\nabla_{\theta} \bar{v}_{\pi} = d^{T} \nabla_{\theta} v_{\pi}$.
-    - 鎵€鏈夌姸鎬佸悓绛夐噸瑕? $d_0(s) = 1/|\mathcal{S}|$.
-    - 浠呭叧蹇冪壒瀹氱姸鎬?$s_0$ (濡傛墍鏈夋儏鑺傜殑璧峰鐘舵€?: $d_0(s_0)=1$, 姝ゆ椂 $\bar{v}_{\pi} = v_{\pi}(s_0)$.
-  - **鎯呭喌 2 (渚濊禆浜庣瓥鐣? $d_{\pi}$)**: 閫夋嫨 $d_{\pi}(s)$ 浣滀负绛栫暐 $\pi$ 涓嬬殑绋虫€佸垎甯?
-   > $d_{\pi}$ 鍙嶆槧浜嗗湪缁欏畾绛栫暐 $\pi$ 涓嬮┈灏斿彲澶喅绛栬繃绋嬬殑闀挎湡琛屼负. 濡傛灉涓€涓姸鎬佸湪闀挎湡杩愯涓棰戠箒璁块棶, 瀹冨氨鏇撮噸瑕? 搴旇鑾峰緱鏇村ぇ鐨勬潈閲?
+- **权重分布 $d$ 的选择**:
+  - **情况 1 (与策略无关, $d_0$)**: 梯度容易计算, $\nabla_{\theta} \bar{v}_{\pi} = d^{T} \nabla_{\theta} v_{\pi}$.
+    - 所有状态同等重要: $d_0(s) = 1/|\mathcal{S}|$.
+    - 仅关心特定状态 $s_0$ (如所有情节的起始状态): $d_0(s_0)=1$, 此时 $\bar{v}_{\pi} = v_{\pi}(s_0)$.
+  - **情况 2 (依赖于策略, $d_{\pi}$)**: 选择 $d_{\pi}(s)$ 作为策略 $\pi$ 下的稳态分布.
+   > $d_{\pi}$ 反映了在给定策略 $\pi$ 下马尔可夫决策过程的长期行为. 如果一个状态在长期运行中被频繁访问, 它就更重要, 应该获得更大的权重.
 
-### 2.2 搴﹂噺浜? 骞冲潎鍗曟濂栧姳 (Average Reward)
-- **琛ㄨ揪寮?1**: $\bar{r}_{\pi} \doteq \sum_{s\in \mathcal{S}} d_{\pi}(s) r_{\pi}(s) = \mathbb{E}[r_{\pi}(S)]$,  鍏朵腑 $S \sim d_{\pi}$.
-- **琛ㄨ揪寮?2**: 娌跨潃涓€鏉¤建杩圭殑骞冲潎鍗曟濂栧姳:
+### 2.2 度量二: 平均单步奖励 (Average Reward)
+- **表达式 1**: $\bar{r}_{\pi} \doteq \sum_{s\in \mathcal{S}} d_{\pi}(s) r_{\pi}(s) = \mathbb{E}[r_{\pi}(S)]$,  其中 $S \sim d_{\pi}$.
+- **表达式 2**: 沿着一条轨迹的平均单步奖励:
   $$
   \bar{r}_{\pi} = \lim_{n\to\infty} \frac{1}{n} \mathbb{E}\left[ \sum_{t=0}^{n-1} R_{t+1} | S_0 = s_0 \right]
   $$
-- **澶囨敞**:
-  - $\bar{r}_{\pi}$ 鏄嵆鏃跺鍔辩殑鍔犳潈骞冲潎.
-  - $r_{\pi}(s)$ 鏄湪鐘舵€?$s$ 涓嬭兘鑾峰緱鐨勫钩鍧囧嵆鏃跺鍔?
+- **备注**:
+  - $\bar{r}_{\pi}$ 是即时奖励的加权平均.
+  - $r_{\pi}(s)$ 是在状态 $s$ 下能获得的平均即时奖励.
 
-## 3. 搴﹂噺鍑芥暟鐨勬搴?姊害璁＄畻鏄瓥鐣ユ搴︽柟娉曚腑鏈€澶嶆潅鐨勯儴鍒嗕箣涓€.
-- **缁熶竴琛ㄨ揪寮?*:
-  $$
-  \nabla_{\theta} J(\theta) = \sum_{s \in \mathcal{S}} \eta(s) \sum_{a \in \mathcal{A}} \nabla_{\theta} \pi(a|s, \theta) q_{\pi}(s, a)
-  $$
-  - $J(\theta)$ 鍙互鏄?$\bar{v}_{\pi}$ 鎴?$\bar{r}_{\pi}$ 绛?
-  - $\eta$ 鏄姸鎬佺殑鏌愮鍒嗗竷鎴栨潈閲?
-  - "=" 鍙兘琛ㄧず涓ユ牸鐩哥瓑, 杩戜技鎴栨姣斾簬.
+## 3. 度量函数的梯度
 
-- **绱у噾涓旈噸瑕佺殑瀵规暟-浼肩劧褰㈠紡**:
-  鍒╃敤 $\nabla_{\theta} \ln \pi(a|s,\theta) = \frac{\nabla_{\theta} \pi(a|s,\theta)}{\pi(a|s,\theta)}$, 鍙皢涓婂紡鏀瑰啓涓?
-  $$
-  \nabla_{\theta} J(\theta) = \mathbb{E}_{S \sim \eta, A \sim \pi} \left[ \nabla_{\theta} \ln \pi(A|S, \theta) q_{\pi}(S, A) \right]
-  $$
-- **涓轰綍鏈夌敤**: 鍥犱负鍙互鐢ㄦ牱鏈潵杩戜技姊害:
-  $$
-  \nabla_{\theta} J \approx \nabla_{\theta} \ln \pi(a|s, \theta) q_{\pi}(s, a)
-  $$
-  杩欐槸闅忔満姊害涓婂崌 (Stochastic Gradient Ascent) 鐨勬€濇兂.
+梯度计算是策略梯度方法中最复杂的部分之一.
 
-- **瀹炵幇瑕佹眰**: 瑕佹眰 $\pi(a|s,\theta) > 0$ 瀵规墍鏈?$s, a, \theta$ 鎴愮珛.
-  - 鍙€氳繃 **Softmax 鍑芥暟** 瀹炵幇:
-    $$
-    \pi(a|s, \theta) = \frac{e^{h(s, a, \theta)}}{\sum_{a' \in \mathcal{A}} e^{h(s, a', \theta)}}
-    $$
-  - 杩欑褰㈠紡鐨勭瓥鐣ユ槸闅忔満鐨?(Stochastic), 鍥犳鍏锋湁鎺㈢储鎬? 纭畾鎬х瓥鐣ユ搴?(DPG) 鏂规硶灏嗗湪涓嬩竴璁插涔?
+- **统一表达式**:
 
-## 4. 姊害涓婂崌绠楁硶: REINFORCE
-鍩轰簬钂欑壒鍗℃礇浼拌鐨勭粡鍏哥瓥鐣ユ搴︾畻娉?
+$$
+\nabla_{\theta} J(\theta) = \sum_{s \in \mathcal{S}} \eta(s) \sum_{a \in \mathcal{A}} \nabla_{\theta} \pi(a|s, \theta) q_{\pi}(s, a)
+$$
 
-### 4.1 REINFORCE 浼唬鐮?- **鍒濆鍖?*: 鍒濆鍙傛暟 $\theta$, $\gamma \in (0,1)$, 瀛︿範鐜?$\alpha > 0$.
-- **鐩爣**: 瀛︿範涓€涓渶澶у寲 $J(\theta)$ 鐨勬渶浼樼瓥鐣?
-- **寰幆 (瀵规瘡涓儏鑺?**:
-  1. 鎸夌収 $\pi(\theta)$ 鐢熸垚涓€涓儏鑺?$\{s_0, a_0, r_1, \dots, s_{T-1}, a_{T-1}, r_T\}$.
-  2. **瀵?$t = 0, 1, \dots, T-1$ 鎵ц**:
-     - **鍊兼洿鏂?(钂欑壒鍗℃礇鍥炴姤浼拌)**: $q_t(s_t, a_t) = \sum_{k=t+1}^{T} \gamma^{k-t-1} r_k$
-     - **绛栫暐鏇存柊 (姊害涓婂崌)**: $\theta \leftarrow \theta + \alpha \nabla_\theta \ln \pi(a_t | s_t, \theta) q_t(s_t, a_t)$
+其中 $J(\theta)$ 可以是 $\bar{v}_{\pi}$ 或 $\bar{r}_{\pi}$ 等目标, $\eta$ 是状态的某种分布或权重.
 
-### 4.2 绠楁硶瑙ｉ噴涓庢礊瀵?- **閲嶆柊鍙傛暟鍖?*:灏嗘洿鏂板叕寮忔敼鍐欎负:
-  $$
-  \theta_{t+1} = \theta_t + \alpha \underbrace{\left( \frac{q_t(s_t, a_t)}{\pi(a_t|s_t, \theta_t)} \right)}_{\beta_t} \nabla_{\theta} \pi(a_t|s_t, \theta_t)
-  $$
-  鍏朵腑 $\beta_t$ 鏄喅瀹氭鐜囧閲忕殑绯绘暟.
+- **对数似然形式**:
 
-- **姒傜巼鍙樺寲鏂瑰悜**:
-  - 鑻?$\beta_t > 0$,鍒欏湪鐘舵€?$s_t$ 閫夋嫨 $a_t$ 鐨勬鐜囦細澧炲姞.
-  - 鑻?$\beta_t < 0$,鍒欏湪鐘舵€?$s_t$ 閫夋嫨 $a_t$ 鐨勬鐜囦細闄嶄綆.
+利用
 
-- **$\beta_t$ 骞宠　鎺㈢储涓庡埄鐢?(Exploration & Exploitation)**:
-  - **鍒╃敤 (Exploitation)**:$\beta_t$ 涓?$q_t(s_t, a_t)$ 鎴愭姣?鍔ㄤ綔浠峰€艰秺澶?璇ュ姩浣滃湪涓嬫琚€変腑鐨勬鐜囧氨瓒婂ぇ.
-    > 鍥犳,璇ョ畻娉曟棬鍦ㄥ埄鐢ㄤ环鍊兼洿澶х殑鍔ㄤ綔.
-  - **鎺㈢储 (Exploration)**:$\beta_t$ 涓?$\pi(a_t|s_t, \theta_t)$ 鎴愬弽姣?褰撳墠姒傜巼瓒婁綆,涓€鏃﹀皾璇曞悗鍏舵鐜囧骞呭氨瓒婂ぇ.
-    > 鍥犳,璇ョ畻娉曟棬鍦ㄦ帰绱㈤偅浜涙鐜囪緝浣庣殑鍔ㄤ綔.
+$$
+\nabla_{\theta} \ln \pi(a|s,\theta) = \frac{\nabla_{\theta} \pi(a|s,\theta)}{\pi(a|s,\theta)}
+$$
 
-### 4.3 閲囨牱鏂瑰紡 (On-Policy)
-- 鍔ㄤ綔 $A$ 鏄粠褰撳墠绛栫暐 $\pi(\theta)$ 涓噰鏍峰緱鍒扮殑.
-- > 鍥犳,绛栫暐姊害鏂规硶鏄?(On-Policy) 鐨?
+可将梯度写成:
+
+$$
+\nabla_{\theta} J(\theta) = \mathbb{E}_{S \sim \eta, A \sim \pi} \left[ \nabla_{\theta} \ln \pi(A|S, \theta) q_{\pi}(S, A) \right]
+$$
+
+这个形式非常重要, 因为它可以用采样来近似梯度:
+
+$$
+\nabla_{\theta} J \approx \nabla_{\theta} \ln \pi(a|s, \theta) q_{\pi}(s, a)
+$$
+
+这就是随机梯度上升 (Stochastic Gradient Ascent) 的基本思想.
+
+- **实现要求**: 需要 $\pi(a|s,\theta) > 0$ 对所有 $s, a, \theta$ 成立. 通常可以通过 Softmax 策略实现:
+
+$$
+\pi(a|s, \theta) = \frac{e^{h(s, a, \theta)}}{\sum_{a' \in \mathcal{A}} e^{h(s, a', \theta)}}
+$$
+
+这种策略是随机的, 因而天然具有探索性.
+
+## 4. 梯度上升算法: REINFORCE
+
+REINFORCE 是基于蒙特卡洛回报估计的经典策略梯度算法.
+
+### 4.1 算法流程
+
+- 初始化参数 $\theta$, 折扣因子 $\gamma \in (0,1)$, 学习率 $\alpha > 0$.
+- 对每个情节执行:
+  1. 按照当前策略 $\pi(\theta)$ 生成一条轨迹 $\{s_0, a_0, r_1, \dots, s_{T-1}, a_{T-1}, r_T\}$.
+  2. 对 $t = 0, 1, \dots, T-1$:
+     - 计算蒙特卡洛回报:
+
+$$
+q_t(s_t, a_t) = \sum_{k=t+1}^{T} \gamma^{k-t-1} r_k
+$$
+
+     - 做策略梯度上升:
+
+$$
+\theta \leftarrow \theta + \alpha \nabla_\theta \ln \pi(a_t | s_t, \theta) q_t(s_t, a_t)
+$$
+
+### 4.2 算法解释
+
+将更新公式改写为:
+
+$$
+\theta_{t+1} = \theta_t + \alpha \underbrace{\left( \frac{q_t(s_t, a_t)}{\pi(a_t|s_t, \theta_t)} \right)}_{\beta_t} \nabla_{\theta} \pi(a_t|s_t, \theta_t)
+$$
+
+其中 $\beta_t$ 决定动作概率的增量方向和幅度.
+
+- 如果 $\beta_t > 0$, 则在状态 $s_t$ 选择 $a_t$ 的概率会增加.
+- 如果 $\beta_t < 0$, 则在状态 $s_t$ 选择 $a_t$ 的概率会降低.
+
+从探索与利用的角度看:
+
+- **利用 (Exploitation)**: $\beta_t$ 与 $q_t(s_t, a_t)$ 成正比. 动作价值越大, 该动作下次被选中的概率就越大.
+- **探索 (Exploration)**: $\beta_t$ 与 $\pi(a_t|s_t, \theta_t)$ 成反比. 当前概率越低, 一旦尝试后得到较高回报, 概率增幅就越大.
+
+### 4.3 采样方式 (On-Policy)
+
+动作 $A$ 是从当前策略 $\pi(\theta)$ 中采样得到的, 因此 REINFORCE 是 On-Policy 方法.
