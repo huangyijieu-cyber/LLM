@@ -1,5 +1,5 @@
 import torch.nn as nn
-
+import torch
 
 class FFN(nn.Module):
     def __init__(self, model_dim, intermediate_dim):
@@ -11,4 +11,8 @@ class FFN(nn.Module):
 
     def forward(self, x):
         """实现 Linear -> ReLU -> Linear。"""
+        x = self.w_up(x)
+        x = torch.relu(x)
+        x = self.w_down(x)
+        return x
         raise NotImplementedError("请实现 FFN.forward")

@@ -1,5 +1,6 @@
 import torch.nn as nn
-
+import torch
+import torch.nn.functional as F
 
 class SwiGLUFFN(nn.Module):
     def __init__(self, model_dim, intermediate_dim):
@@ -12,4 +13,6 @@ class SwiGLUFFN(nn.Module):
 
     def forward(self, x):
         """实现 Down(SiLU(Gate(x)) * Up(x))。"""
+        gate = self.w_gate(x)
+        return self.w_down(F.silu(gate) * self.w_up(x))
         raise NotImplementedError("请实现 SwiGLUFFN.forward")

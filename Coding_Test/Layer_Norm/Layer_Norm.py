@@ -11,4 +11,9 @@ class LayerNorm(nn.Module):
 
     def forward(self, x):
         """实现与 Examples/normalization/LayerNorm.py 一致的前向计算。"""
+        mean = torch.mean(x, dim = -1, keepdims = True)
+        var = torch.var(x, dim = -1, keepdims = True, unbiased = False)
+        output = (x - mean) / (var + self.eps) ** 0.5
+        output = self.gamma * output + self.beta
+        return output
         raise NotImplementedError("请实现 LayerNorm.forward")

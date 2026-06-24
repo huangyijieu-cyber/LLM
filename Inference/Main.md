@@ -135,6 +135,8 @@ Flash Attention主要优化的是训练和预填充阶段.对于生成阶段,由
 | $D_{head}$   | 单头维度                 | 通常 $D_{model} / N_{heads}$     |
 | $S_{prec}$   | 数据精度大小             | Bytes (FP16=2, FP32=4, INT8=1)   |
 
+### 3.1 推理阶段
+
 总显存占用 $M_{total}$ 由两部分组成:
 
 $$
@@ -144,16 +146,179 @@ $$
 *(注:推理阶段激活值 $M_{activation}$ 相对较小,主要由权重和KV Cache主导,但在长序列下KV Cache占主导)*
 
 其中:
-#### 1. 模型权重显存 ($M_{weights}$)
+#### 3.1.1. 模型权重显存 ($M_{weights}$)
 
 $$
 M_{weights} \approx P_{model} \times S_{prec}
 $$
 
-#### 2. KV Cache 显存 ($M_{KVCache}$)
+#### 3.1.2. KV Cache 显存 ($M_{KVCache}$)
 
 $$
 M_{KVCache} = 2 \times N_{layers} \times N_{kv} \times D_{head} \times L_{seq} \times B \times S_{prec}
 $$
 
 *(系数"2"代表同时存储Key和Value.)*
+
+#### 3.2 训练阶段
+
+下面只保留**最后简化版**，总显存统一写成：
+
+$$
+M_{total}
+$$
+
+默认：
+$P_{model}$ 单位是 Billions，显存单位近似为 GB，$B$ 指 micro batch size。
+
+---
+
+#### 3.2.1. 全参数微调
+
+不开 gradient checkpointing：
+
+$$
+M_{total}
+\approx
+16
+\times
+P_{model}
++
+(10 \sim 20)
+\times
+N_{layers}
+\times
+B
+\times
+L_{seq}
+\times
+D_{model}
+\times
+S_{prec}
+$$
+
+开 gradient checkpointing：
+
+$$
+M_{total}
+\approx
+16
+\times
+P_{model}
++
+(2 \sim 6)
+\times
+N_{layers}
+\times
+B
+\times
+L_{seq}
+\times
+D_{model}
+\times
+S_{prec}
+$$
+
+---
+
+## 3.2.2. LoRA 微调
+
+不开 gradient checkpointing：
+
+$$
+M_{total}
+\approx
+2
+\times
+P_{model}
++
+(10 \sim 20)
+\times
+N_{layers}
+\times
+B
+\times
+L_{seq}
+\times
+D_{model}
+\times
+S_{prec}
+$$
+
+开 gradient checkpointing：
+
+$$
+M_{total}
+\approx
+2
+\times
+P_{model}
++
+(2 \sim 6)
+\times
+N_{layers}
+\times
+B
+\times
+L_{seq}
+\times
+D_{model}
+\times
+S_{prec}
+$$
+
+---
+
+## 3.2.3. QLoRA 微调
+
+不开 gradient checkpointing：
+
+$$
+M_{total}
+\approx
+(0.5 \sim 0.7)
+\times
+P_{model}
++
+(10 \sim 20)
+\times
+N_{layers}
+\times
+B
+\times
+L_{seq}
+\times
+D_{model}
+\times
+S_{prec}
+$$
+
+开 gradient checkpointing：
+
+$$
+M_{total}
+\approx
+(0.5 \sim 0.7)
+\times
+P_{model}
++
+(2 \sim 6)
+\times
+N_{layers}
+\times
+B
+\times
+L_{seq}
+\times
+D_{model}
+\times
+S_{prec}
+$$
+
+---
+
+其中：
+
+* 全参数微调的 $16 \times P_{model}$ 来自：权重、梯度、FP32 master weight、Adam 一阶动量、Adam 二阶动量。
+* LoRA 的 $2 \times P_{model}$ 表示基础模型只加载 FP16 / BF16 权重。
+* QLoRA 的 $(0.5 \sim 0.7) \times P_{model}$ 表示基础模型以 4bit 量化加载。

@@ -18,8 +18,14 @@ class LoRALinear(nn.Module):
 
     def reset_parameters(self):
         """按照标准答案初始化 A，并将 B 初始化为零。"""
-        raise NotImplementedError("请实现 LoRALinear.reset_parameters")
+        nn.init.kaiming_uniform_(self.lora_a.weight, a = math.sqrt(5))
+        nn.init.zeros_(self.lora_b.weight)
+        #raise NotImplementedError("请实现 LoRALinear.reset_parameters")
 
     def forward(self, x):
         """实现原始线性输出与 LoRA 增量输出之和。"""
+        with torch.no_grad():
+            original_output = self.weight(x)
+        lora_output = self.lora_b(self.lora_a(self.dropout(x))) * self.scaling
+        return original_output + lora_output
         raise NotImplementedError("请实现 LoRALinear.forward")

@@ -87,8 +87,8 @@ class MoE(nn.Module):
             mask = (indices == i)
 
             # 获取选中第 i 个专家的 token 索引和在 top-k 中的位置
-            # token_indices: [num_tokens_using_expert_i]
-            # top_k_pos: [num_tokens_using_expert_i]
+            # token_indices: [num_tokens_using_expert_i] 选中这个专家的token的索引
+            # top_k_pos: [num_tokens_using_expert_i]    每个token的第几位选择了该专家
             token_indices, top_k_pos = torch.where(mask)
 
             if token_indices.numel() > 0:
