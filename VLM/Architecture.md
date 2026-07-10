@@ -239,7 +239,7 @@ LLaVA 训练通常分为两个阶段, 详见 [Training](./Training.md).
 第二阶段使用多模态指令数据进行监督微调:
 
 $$
-L_{\text{SFT}} = -\sum_t \log P(y_t|I,x,y_{<t})
+L_{\mathrm{SFT}} = -\sum_{t=1}^{T} \log P(y_t \mid I,x,y_{1:t-1})
 $$
 
 其中:

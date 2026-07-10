@@ -69,7 +69,7 @@ $$
 训练目标和普通语言模型类似:
 
 $$
-L = -\sum_t \log P(y_t|I,y_{<t})
+L = -\sum_{t=1}^{T} \log P(y_t \mid I,y_{1:t-1})
 $$
 
 ### 2.1 特点
@@ -136,7 +136,7 @@ ASSISTANT: ...
 训练目标是最大化标准回答的 token 概率:
 
 $$
-L_{\text{SFT}} = -\sum_t \log P(y_t|I,x,y_{<t})
+L_{\mathrm{SFT}} = -\sum_{t=1}^{T} \log P(y_t \mid I,x,y_{1:t-1})
 $$
 
 ### 4.1 数据类型
