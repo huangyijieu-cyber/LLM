@@ -10,7 +10,9 @@ $$
 \text{Visual Features}
 $$
 
-这些视觉特征后续会通过 [Projector](./Projector.md) 映射到 LLM 的 hidden space, 再和文本 token 一起送入 [Transformer](../basic/Transformer%20架构.md).
+这些视觉特征后续会通过 [Projector](./Projector.md) 映射到 LLM hidden space, 再和文本 token 一起送入 [Transformer](../basic/Transformer%20架构.md).
+
+Vision Encoder 决定 VLM 能看到什么. 如果视觉塔没有保留文字, 小目标或病灶细节, 后续 [LLM](../basic/Transformer%20架构.md) 很难通过语言推理恢复这些信息.
 
 ---
 
@@ -36,6 +38,7 @@ $$
 2. 提取图像语义特征.
 3. 输出一组视觉 embedding.
 4. 为后续图文对齐提供基础.
+5. 保留 OCR, grounding, medical image 等任务需要的细节.
 
 ---
 
@@ -75,7 +78,7 @@ $$
 
 这些 patch embeddings 会送入 Transformer Encoder.
 
-### 2.2 ViT 的特点
+### 2.2 特点
 
 1. **结构和 Transformer 统一**: 方便和 LLM 架构对齐.
 2. **全局建模能力强**: Self-Attention 可以建模远距离区域关系.
@@ -93,11 +96,11 @@ ViT 是现代 VLM vision encoder 的基础.
 CLIP 中有两个 encoder:
 
 $$
-\text{Image Encoder}: I \rightarrow z_I
+\text{Image Encoder}(I) \rightarrow z_I
 $$
 
 $$
-\text{Text Encoder}: T \rightarrow z_T
+\text{Text Encoder}(T) \rightarrow z_T
 $$
 
 训练目标是让匹配图文对相似度更高:
@@ -124,6 +127,7 @@ $$
 1. **全局语义强, 细粒度 OCR 较弱**.
 2. **固定分辨率可能丢失细节**.
 3. **医学影像等专业域存在 domain gap**.
+4. **只做对齐不等于会生成回答**.
 
 ---
 
@@ -131,23 +135,23 @@ $$
 
 [SigLIP](https://arxiv.org/abs/2303.15343) 是对 CLIP 对比学习目标的改进.
 
-CLIP 通常使用 softmax contrastive loss, 而 SigLIP 使用 sigmoid loss.
-
-直观理解:
-
-**CLIP 把一个 batch 内的图文 pair 当成多分类问题, SigLIP 把每个 image-text pair 当成独立二分类问题.**
+CLIP 通常使用 softmax contrastive loss, SigLIP 使用 sigmoid loss. 它将每个 image-text pair 当作独立二分类问题.
 
 ### 4.1 特点
 
 1. **训练更易扩展到大 batch / 分布式场景**.
 2. **图文表征质量强**.
 3. **常被现代 VLM 用作 vision encoder 候选**.
+4. **适合大规模图文对齐预训练**.
 
-### 4.2 适合场景
+### 4.2 和 CLIP 的区别
 
-- 通用图文对齐.
-- VLM 视觉塔.
-- 多语言图文预训练.
+|对比项|CLIP|SigLIP|
+|---|---|---|
+|训练目标|softmax contrastive loss|sigmoid loss|
+|batch 依赖|依赖 batch 内多分类对比|每个 pair 独立二分类|
+|扩展性|依赖大 batch|更适合分布式扩展|
+|主要用途|图文对齐, VLM 视觉塔|图文对齐, VLM 视觉塔|
 
 ---
 
@@ -166,26 +170,27 @@ CLIP 通常使用 softmax contrastive loss, 而 SigLIP 使用 sigmoid loss.
 
 ### 5.2 在 VLM 中的价值
 
-DINOv2 更偏视觉理解, CLIP 更偏图文语义对齐. 一些 VLM 会融合 CLIP 和 DINO 类特征, 试图同时获得:
+DINOv2 更偏视觉感知, CLIP / SigLIP 更偏图文语义对齐. 一些 VLM 会融合 CLIP 和 DINO 类特征, 试图同时获得:
 
-- 图文对齐能力.
-- 细粒度视觉感知能力.
+1. 图文对齐能力.
+2. 细粒度视觉感知能力.
+3. dense perception 能力.
+4. grounding 能力.
 
 ---
 
-## 6. EVA-CLIP 和其他视觉塔
+## 6. EVA-CLIP / InternViT / 其他视觉塔
 
-EVA-CLIP, OpenCLIP, ConvNeXt-CLIP 等也常作为 VLM 视觉塔.
+EVA-CLIP, OpenCLIP, ConvNeXt-CLIP, InternViT 等也常作为 VLM 视觉塔.
 
 这些模型的共同目标是:
 
 1. 提供更强图像特征.
 2. 支持更高分辨率.
 3. 改善 OCR, grounding, fine-grained perception.
+4. 降低特定领域的 domain gap.
 
-它们不是每个都需要深入掌握, 面试中更重要的是知道:
-
-**VLM 的视觉塔选择会直接影响感知能力, OCR 能力, 细粒度识别和领域迁移能力.**
+其中 InternVL 系列更强调强 vision foundation model, 详见 [Architecture](./Architecture.md).
 
 ---
 
@@ -199,13 +204,15 @@ ViT 中常用一个 `[CLS]` token 表示整张图.
 
 优点:
 
-- 简洁.
-- 适合分类和检索.
+1. 表示简洁.
+2. 适合分类和检索.
+3. token 成本低.
 
 缺点:
 
-- 信息压缩太强.
-- 不适合细粒度定位和 OCR.
+1. 信息压缩太强.
+2. 不适合细粒度定位.
+3. 不适合 OCR 和文档理解.
 
 ---
 
@@ -219,26 +226,29 @@ $$
 
 优点:
 
-- 细粒度信息更丰富.
-- 适合 grounding, OCR, 图表理解.
+1. 细粒度信息更丰富.
+2. 适合 grounding, OCR, 图表理解.
+3. 适合高分辨率 tile 扩展.
 
 缺点:
 
-- token 数多.
-- LLM 上下文成本高.
+1. token 数多.
+2. LLM 上下文成本高.
+3. [KV Cache](../Inference/KV_Cache.md) 压力更大.
 
 ---
 
-### 7.3 Multi-scale Features
+### 7.3 Multi-Scale Features
 
-多尺度特征保留不同分辨率下的信息.
+Multi-scale features 保留不同分辨率下的信息.
 
 适合:
 
-- 小目标.
-- 医学影像.
-- 文档 OCR.
-- 遥感图像.
+1. 小目标.
+2. 医学影像.
+3. 文档 OCR.
+4. 遥感图像.
+5. 病理切片.
 
 缺点是实现更复杂, 推理成本更高.
 
@@ -250,27 +260,43 @@ VLM 中分辨率非常关键.
 
 低分辨率:
 
-- 推理快.
-- token 少.
-- 但细节丢失.
+1. 推理快.
+2. visual tokens 少.
+3. OCR 和细节容易丢失.
 
 高分辨率:
 
-- OCR 和细粒度识别更好.
-- 医疗影像更有价值.
-- 但 visual tokens 变多.
-- [KV Cache](../Inference/KV_Cache.md) 和 prefill 成本增加.
+1. OCR 和细粒度识别更好.
+2. 医疗影像更有价值.
+3. visual tokens 变多.
+4. [KV Cache](../Inference/KV_Cache.md) 和 prefill 成本增加.
 
 现代 VLM 常用:
 
-- AnyRes.
-- Dynamic Resolution.
-- Image tiling.
-- Multi-crop.
+1. AnyRes.
+2. Dynamic Resolution.
+3. Image tiling.
+4. Multi-crop.
+5. Global thumbnail + local tiles.
+
+这些机制在 [Architecture](./Architecture.md) 中有更详细说明.
 
 ---
 
-## 9. Vision Encoder 对比
+## 9. Vision Encoder 选择和任务能力
+
+|任务|更依赖什么能力|Vision Encoder 关注点|
+|---|---|---|
+|通用 VQA|语义理解|图文对齐能力|
+|OCR|小文字识别|高分辨率, patch features|
+|Document QA|布局和文字|高分辨率, 2D 位置, tile|
+|Grounding|区域定位|局部视觉特征, spatial feature|
+|Video|帧级视觉特征|时间采样和多帧一致性|
+|Medical VLM|细微异常识别|高分辨率, 专业域适配|
+
+---
+
+## 10. Vision Encoder 对比
 
 |Vision Encoder|核心监督|优点|局限|常见用途|
 |---|---|---|---|---|
@@ -279,7 +305,16 @@ VLM 中分辨率非常关键.
 |SigLIP|sigmoid 图文对比|扩展性好, 表征强|仍依赖图文数据|现代 VLM 视觉塔|
 |DINOv2|自监督视觉学习|视觉细节强|语言对齐弱|感知增强|
 |EVA-CLIP|大规模图文预训练|性能强|训练成本高|强 VLM 视觉塔|
+|InternViT|视觉基础模型训练|高分辨率和综合能力强|训练和部署成本高|InternVL 系列|
 
-一句话总结:
+---
 
-**CLIP / SigLIP 更偏图文语义对齐, DINOv2 更偏视觉感知, 现代强 VLM 往往需要同时兼顾语义对齐和细粒度视觉理解.**
+## 11. 总结
+
+Vision Encoder 的选择会直接影响 VLM 的感知上限.
+
+1. CLIP / SigLIP 更偏图文语义对齐.
+2. DINOv2 更偏视觉感知.
+3. EVA-CLIP / InternViT 等强视觉塔更适合高性能 VLM.
+4. OCR, document, medical image 等任务通常需要更高分辨率和更多局部特征.
+5. 高分辨率会带来更多 visual tokens, 需要和 [Projector](./Projector.md), [Inference](./Inference.md) 一起考虑.
