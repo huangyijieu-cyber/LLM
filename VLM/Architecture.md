@@ -38,7 +38,7 @@ $$
 N_v \approx \frac{H \times W}{P^2}
 $$
 
-分辨率越高, OCR, 文档和小目标细节越容易保留, 但 LLM prefill, [KV Cache](../Inference/KV_Cache.md) 和 batch 调度成本也越高. 因此 visual token budget 是理解 VLM 架构的主线: AnyRes 和 Dynamic Resolution 负责获取更多细节, Q-Former, Perceiver Resampler 和 Patch Merger 负责控制这些细节以多少 token 进入 LLM.
+分辨率越高, OCR, 文档和小目标细节越容易保留, 但 LLM prefill, [KV Cache](../Inference/KV_Cache.md) 和 batch 调度成本也越高. **因此 visual token budget 是理解 VLM 架构的主线: 高分辨率策略负责获取细节, Connector 负责控制有多少细节进入 LLM.**
 
 视觉信息主要有两种注入方式. LLaVA, Qwen-VL 和 InternVL 将 visual embeddings 作为 LLM 输入 token, 通常替换 prompt 中的 `<image>`; Flamingo 则在 LLM 中间层加入 cross-attention, 让文本 hidden states 读取独立视觉 memory. 前者结构简单并复用 decoder-only LLM, 后者融合更灵活但会修改模型与 serving 实现.
 
@@ -55,7 +55,7 @@ $$
 |Flamingo|Perceiver Resampler + Gated Cross-Attention|多图交错与 multimodal few-shot|固定 visual latents 和中间层注入|
 |CLIP / SigLIP|Image Encoder + Text Encoder|图文表征对齐|常作为视觉塔, 本身不负责对话生成|
 
-当前需要重点理解 LLaVA, Qwen-VL 和 InternVL. 它们都采用强 Vision Encoder + decoder-only LLM, 但在高分辨率策略, token 压缩, 位置编码和训练配方上走出了不同路线. BLIP-2 与 Flamingo 虽不是当前最常见的通用助手结构, 但 Q-Former, Perceiver Resampler 和 gated cross-attention 仍是重要的 Connector 思想.
+当前需要重点理解 **LLaVA, Qwen-VL 和 InternVL**. 它们都采用强 Vision Encoder + decoder-only LLM, 但在高分辨率策略, token 压缩, 位置编码和训练配方上走出了不同路线. BLIP-2 与 Flamingo 虽不是当前最常见的通用助手结构, 但 Q-Former, Perceiver Resampler 和 gated cross-attention 仍是重要的 Connector 思想.
 
 ---
 
@@ -75,7 +75,7 @@ $$
 \text{LLM}
 $$
 
-它通常保留 CLIP 的 patch features, 而不是只使用整图 CLS feature. 若只使用 $z_I \in \mathbb{R}^{d}$ 的全局表示, 局部信息被压进单个向量, 很难支持区域问答和小目标识别. Patch features 则表示为 $X_v=\{v_1,v_2,\dots,v_N\}$, 每个 patch 经过 MLP:
+**LLaVA 通常保留 CLIP 的 patch features, 而不是只使用整图 CLS feature.** 若只使用 $z_I \in \mathbb{R}^{d}$ 的全局表示, 局部信息被压进单个向量, 很难支持区域问答和小目标识别. Patch features 则表示为 $X_v=\{v_1,v_2,\dots,v_N\}$, 每个 patch 经过 MLP:
 
 $$
 H_v = W_2\sigma(W_1X_v)
@@ -91,7 +91,7 @@ $$
 L_{\mathrm{SFT}} = -\sum_{t=1}^{T}\log P(y_t \mid I,x,y_{1:t-1})
 $$
 
-两阶段训练降低了直接联合优化的难度. 第一阶段解决 "视觉 token 表示什么", 第二阶段解决 "如何根据视觉 token 执行指令". LLaVA 的影响力主要来自这套简单但有效的工程范式, 而不是复杂的新模块.
+**第一阶段解决 "视觉 token 表示什么", 第二阶段解决 "如何根据视觉 token 执行指令".** 两阶段训练降低了直接联合优化的难度, 具体见 [Training](./Training.md). LLaVA 的影响力主要来自这套简单但有效的工程范式, 而不是复杂的新模块.
 
 ### 3.3 LLaVA-NeXT 和 OneVision
 
@@ -132,13 +132,13 @@ H_v \in \mathbb{R}^{N'_v \times d_{\mathrm{LLM}}},
 \qquad N'_v < N_v
 $$
 
-两者是一组配套设计: Dynamic Resolution 增加有效视觉信息, Patch Merger 控制最终 token budget. 与 Q-Former 固定少量 query 的全局摘要相比, spatial merging 更强调保留局部二维结构, 因而适合 OCR 和文档任务.
+**Dynamic Resolution 负责保留更多视觉细节, Patch Merger 负责控制进入 LLM 的 token 数量.** 与 Q-Former 固定少量 query 的全局摘要相比, spatial merging 更强调保留局部二维结构, 因而适合 OCR 和文档任务.
 
 ### 4.2 M-RoPE
 
 文本位置是一维顺序 $t$, 图像位置是二维坐标 $(h,w)$, 视频还包含时间维度 $(t,h,w)$. Qwen2-VL 的 M-RoPE 将位置表示扩展到多维结构, 使同一个 LLM 能够处理文本顺序, 图像行列和视频时间.
 
-M-RoPE 的价值不只是支持更多输入类型. OCR 需要知道文字阅读顺序, Grounding 需要理解区域位置, Chart 需要保留二维关系, Video 需要区分事件先后. 如果 visual tokens 只有普通的一维拼接位置, 模型仍能学习部分规律, 但不同 modality 的结构先验表达较弱.
+**M-RoPE 同时表示文本的一维顺序, 图像的二维空间和视频的时间维度.** OCR 需要知道文字阅读顺序, Grounding 需要理解区域位置, Chart 需要保留二维关系, Video 需要区分事件先后. 如果 visual tokens 只有普通的一维拼接位置, 模型仍能学习部分规律, 但不同 modality 的结构先验表达较弱.
 
 ### 4.3 Grounding 和真实任务
 
@@ -170,7 +170,7 @@ $$
 
 ### 5.2 Dynamic High Resolution
 
-[InternVL1.5](https://arxiv.org/abs/2404.16821) 等版本使用 Dynamic High Resolution. 系统根据宽高比选择 tile 网格, 将大图切成若干固定尺寸 local tiles, 并加入 global thumbnail. Local tiles 保存文档小字, 图表和病灶细节, thumbnail 提供全局布局. 这与 LLaVA AnyRes 的目标相似, 但 InternVL 更强调把高分辨率处理与强视觉塔和整体训练配方结合.
+[InternVL1.5](https://arxiv.org/abs/2404.16821) 引入系统化的 Dynamic High Resolution, [InternVL2.5](https://arxiv.org/abs/2412.05271) 继续完善高分辨率, 多图与综合推理能力. 系统根据宽高比选择 tile 网格, 将大图切成若干固定尺寸 local tiles, 并加入 global thumbnail. Local tiles 保存文档小字, 图表和病灶细节, thumbnail 提供全局布局. 这与 LLaVA AnyRes 的目标相似, 但 InternVL 更强调把高分辨率处理与强视觉塔和整体训练配方结合.
 
 Tile 数不能无限增加. 更多 tile 会同时增加 Vision Encoder forward 和 LLM visual tokens, 因而训练与推理都需要设置最大 tile 数, 按图像复杂度分配预算. 在文档, 医疗和小目标任务中提高 tile 上限有价值, 普通场景图则未必需要相同成本.
 
@@ -178,7 +178,7 @@ Tile 数不能无限增加. 更多 tile 会同时增加 Vision Encoder forward �
 
 [InternVL3](https://arxiv.org/abs/2504.10479) 引入 V2PE 等视觉位置设计, 面向动态高分辨率下不固定的 tile 数与 visual token 布局. 它需要同时描述 tile 在原图中的全局位置, patch 在 tile 内的局部位置, 以及 thumbnail 与 local tiles 的关系.
 
-V2PE 与 Qwen-VL 的 M-RoPE 关注点不同. M-RoPE 重点统一 text, image 和 video 的多维位置; V2PE 更聚焦动态高分辨率视觉 token 的位置表达. 两者都说明现代 VLM 不再把图像简单看成一串无结构 token.
+V2PE 与 Qwen-VL 的 M-RoPE 关注点不同. M-RoPE 重点统一 text, image 和 video 的多维位置; V2PE 更聚焦动态高分辨率视觉 token 的位置表达. **两者都说明现代 VLM 不再把图像简单看成一串无结构 token.**
 
 InternVL3 还强调 native multimodal pretraining, 即在更早训练阶段让模型接触图文与交错多模态数据, 而不是 text-only LLM 完成后才连接视觉模块. 这种训练使图文融合更自然, 但需要更大数据与计算量, 对数据清洗和 [Megatron](../Framework/Megatron.md), [DeepSpeed](../Framework/DeepSpeed.md) 等分布式系统要求更高.
 
@@ -204,7 +204,7 @@ Q' = \mathrm{CrossAttention}(Q,X_v),
 \qquad M \ll N_v
 $$
 
-最终只有固定数量 query outputs 进入 LLM. 这种 query-based compression 参数效率高, 也使 visual token 成本稳定. 但固定信息瓶颈可能忽略 OCR 和 dense perception 细节. 与 LLaVA 相比, BLIP-2 的重点是用 Q-Former 连接冻结模型, LLaVA 的重点是保留 patch features 并通过 Visual Instruction Tuning 获得助手能力.
+最终只有固定数量 query outputs 进入 LLM. 这种 query-based compression 参数效率高, 也使 visual token 成本稳定. 但固定信息瓶颈可能忽略 OCR 和 dense perception 细节. **BLIP-2 的重点是用 Q-Former 低成本连接冻结模型, LLaVA 的重点是保留 patch features 并通过 Visual Instruction Tuning 获得助手能力.**
 
 ### 6.2 Flamingo
 
@@ -260,7 +260,7 @@ $$
 \text{LLM}
 $$
 
-如果每帧有 $N_{\mathrm{frame}}$ 个 token, 总量近似为 $T \times N_{\mathrm{frame}}$. Uniform sampling 简单但可能漏掉短动作, keyframe sampling 更关注变化但依赖额外检测, adaptive sampling 可以根据问题选帧但系统更复杂. 除减少帧数外, 还可以使用 temporal pooling, patch merging 或 video-specific encoder 压缩冗余.
+如果每帧有 $N_{\mathrm{frame}}$ 个 token, 总量近似为 $T \times N_{\mathrm{frame}}$. Uniform sampling 或固定 FPS sampling 实现简单但可能漏掉短动作, keyframe sampling 更关注变化但依赖额外检测, adaptive sampling 可以根据问题选帧但系统更复杂. 除减少帧数外, 还可以使用 temporal pooling, patch merging 或 video-specific encoder 压缩冗余.
 
 视频位置需要表示 $(t,h,w)$, 而不只是图像中的 $(h,w)$. 缺少时间位置时, 模型可能识别每一帧的对象, 却无法判断动作方向, 状态变化和事件先后. 因此 Video VLM 的三项核心能力是帧级空间细节, 跨帧时间建模和长视频 token 控制.
 

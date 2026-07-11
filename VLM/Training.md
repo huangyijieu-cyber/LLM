@@ -14,7 +14,7 @@ $$
 \text{Domain Adaptation}
 $$
 
-每个阶段的边界并非固定. 有些模型直接复用 CLIP / SigLIP 视觉塔, 因而跳过视觉预训练; 有些模型进行 native multimodal pretraining, 会较早联合更新 Vision Encoder 和 LLM. 但从能力上看, 这些阶段解决的问题仍然不同.
+每个阶段的边界并非固定. 有些模型直接复用 CLIP / SigLIP 视觉塔, 因而跳过视觉预训练; 有些模型进行 native multimodal pretraining, 会较早联合更新 Vision Encoder 和 LLM. **训练实现可以合并阶段, 但图文表征, 接口对齐, 指令能力和偏好约束仍是四类不同目标.**
 
 ---
 
@@ -37,9 +37,9 @@ $$
 
 ### 2.1 Contrastive Pretraining
 
-[CLIP](https://arxiv.org/abs/2103.00020) 对一批图文对 $(I_i,T_i)$ 分别编码, 提高匹配 pair 的相似度并降低不匹配 pair 的相似度. [SigLIP](https://arxiv.org/abs/2303.15343) 将 pair 匹配改为 sigmoid 二分类目标. 这类训练得到的 [Vision Encoder](./Vision_Encoder.md) 天然带有语言语义, 便于后续接入 LLM, 也保留较好的 zero-shot 与 retrieval 能力.
+[CLIP](https://arxiv.org/abs/2103.00020) 对一批图文对 $\{(I_i,T_i)\}_{i=1}^{B}$ 分别编码, 提高匹配 pair 的相似度并降低不匹配 pair 的相似度. [SigLIP](https://arxiv.org/abs/2303.15343) 将 pair 匹配改为独立的 sigmoid 二分类目标. **对比学习建立图文表示空间, 但不直接训练长回答生成.** 这类训练得到的 [Vision Encoder](./Vision_Encoder.md) 天然带有语言语义, 也保留较好的 zero-shot 与 retrieval 能力.
 
-对比学习主要训练表示空间, 不直接训练长回答生成. 它也更关注全局图文关系, 对 OCR, 文档布局和医学细节未必充分. 因此强视觉塔只是 VLM 的起点, 不能替代后续多模态生成训练.
+这类目标更关注全局图文关系, 对 OCR, 文档布局和医学细节未必充分. 因此强视觉塔只是 VLM 的起点, 不能替代后续多模态生成训练.
 
 ### 2.2 Generative Pretraining
 
@@ -49,7 +49,7 @@ $$
 L_{\mathrm{gen}} = -\sum_{t=1}^{T}\log P(y_t \mid I,y_{1:t-1})
 $$
 
-相比纯对比学习, 生成式目标更接近 VQA 和对话模型的使用方式, 能让 visual tokens 参与自回归生成. 但 Caption 通常只描述显著内容, 不要求遵循复杂指令, 也不覆盖 Grounding, 多轮对话和结构化输出. 如果 Caption 占比过高, 模型容易形成 "看到图片就描述" 的默认行为.
+**生成式预训练让 visual tokens 真正参与自回归预测, 因而比纯对比学习更接近 VQA 和对话模型.** 但 Caption 通常只描述显著内容, 不要求遵循复杂指令, 也不覆盖 Grounding, 多轮对话和结构化输出. 如果 Caption 占比过高, 模型容易形成 "看到图片就描述" 的默认行为.
 
 一些新模型使用 native multimodal pretraining, 在较早阶段把图像, 文本和交错序列一起训练. 这样视觉与语言融合更充分, 但训练成本, 数据清洗和稳定性要求都明显高于复用冻结视觉塔.
 
@@ -63,7 +63,7 @@ $$
 H_v = f_{\mathrm{proj}}(X_v)
 $$
 
-该阶段使用 image-caption pair 或简单 VQA, 让 $H_v$ 落到 LLM 能够解释的 hidden space. 如果跳过基础对齐, LLM 会直接看到分布陌生的视觉 embedding, 后续 SFT 容易收敛慢或破坏已有语言能力.
+该阶段使用 image-caption pair 或简单 VQA, 让 $H_v$ 落到 LLM 能够解释的 hidden space. **Projector Alignment 解决的是接口可读性, 不是复杂任务能力.** 如果跳过基础对齐, LLM 会直接看到分布陌生的视觉 embedding, 后续 SFT 容易收敛慢或破坏已有语言能力.
 
 Projector Alignment 的目标不是让模型掌握所有任务. 数据过于简单时, 模型只会建立 "视觉特征对应什么文本" 的粗粒度映射, 复杂推理仍然依赖 Instruction Tuning. 对齐数据如果图文弱相关或包含幻觉, 则会从接口层污染后续训练, 表现为模型忽略图像, visual tokens 语义不稳定或 instruction stage 学习效率低.
 
@@ -86,7 +86,7 @@ $$
 L_{\mathrm{SFT}} = -\sum_{t=1}^{T}\log P(y_t \mid I,x,y_{1:t-1})
 $$
 
-Instruction data 需要覆盖通用 VQA, OCR / Document, Chart, Grounding, Multi-Image, Video 和 Medical 等任务. 不同任务不是同一种能力的不同测试集: OCR 数据训练模型读取小字, Grounding 数据建立区域与文本对应, Video QA 引入时间关系, Medical data 负责专业域知识和安全表达. 具体配比见 [Data_Process](./Data_Process.md).
+Instruction data 需要覆盖 General VQA, OCR QA, Document QA, Chart QA, Grounding, Multi-Image QA, Video QA 和 Medical QA. **不同任务不是同一种能力的不同数据集: OCR 学读取, Grounding 学定位, Video 学时间关系, Medical 学专业域和安全边界.** 具体配比见 [Data_Process](./Data_Process.md).
 
 常见训练配置是冻结 Vision Encoder, 全量训练 Projector, 并对 LLM 使用 [LoRA](../Finetune/PEFT.md) 或全参数微调. 当目标任务与视觉塔预训练分布差异较大, 例如医疗影像或高分辨率文档, 可以解冻 Vision Encoder 后部层. 全模块联合训练的上限更高, 但应对视觉塔和 LLM 使用较小 learning rate, 避免通用能力快速遗忘.
 
@@ -102,7 +102,7 @@ $$
 (I,x,y_w,y_l)
 $$
 
-其中 $y_w$ 比 $y_l$ 更符合视觉证据, 幻觉更少, 格式更稳定或医疗表达更安全. 可以使用 [DPO](../Align/DPO.md) 直接提高 chosen answer 的相对概率. 多模态 DPO 的关键是 preference 必须真正依赖图像; 如果 chosen 只是语言更流畅, 模型可能改善文风却没有减少视觉幻觉.
+其中 $y_w$ 比 $y_l$ 更符合视觉证据, 幻觉更少, 格式更稳定或医疗表达更安全. 可以使用 [DPO](../Align/DPO.md) 直接提高 chosen answer 的相对概率. **多模态偏好的差异必须来自视觉正确性, 而不能只来自语言流畅度.** 否则模型可能改善文风却没有减少视觉幻觉.
 
 [RLHF](../Align/RLHF.md) 可以使用 reward model 评价开放式回答. 对有明确验证规则的任务, [GRPO](../Align/GRPO.md) 或 [DAPO](../Align/DAPO.md) 更容易构造可靠 reward, 例如 OCR exact match, Chart QA 数值答案, Grounding box IoU, Medical multiple choice 和 JSON schema. 对同一输入生成多个回答并用 verifier 打分, 可以直接优化任务结果. 大规模 rollout 可结合 [vLLM](../Framework/vllm.md), [SGLang](../Framework/SGLang.md) 与 [verl](../Framework/Verl.md).
 
@@ -114,17 +114,17 @@ $$
 
 ### 6.1 OCR, Document 和 Grounding
 
-OCR / Document 训练通常使用高分辨率截图, 表格, 图表, PDF 页面和多页文档. 除文字内容外, 数据需要保留 layout, 行列关系和字段位置. 结构化抽取任务还应约束 schema, 缺失字段和数值格式. 这类训练与 Dynamic Resolution, Patch Merger 等架构设计共同决定最终效果.
+OCR / Document 训练通常使用 TextVQA 类数据, 高分辨率截图, 表格, 图表, PDF 页面和多页文档. 除文字内容外, 数据需要保留 layout, 行列关系和字段位置. 结构化抽取任务还应约束 schema, 缺失字段和数值格式. 这类训练与 Dynamic Resolution, Patch Merger 等架构设计共同决定最终效果.
 
-Grounding 数据把文本与 box, point 或 mask 对齐. 它既能训练目标定位, 也能要求模型为回答提供视觉证据. 医疗病灶定位与 GUI click 都依赖同一基础能力, 但坐标系统和评价标准不同. 图像预处理发生 resize 或 crop 时, 训练标签必须同步变换, 否则模型会学到错误位置.
+Grounding 数据可以写为 $(\mathrm{image},\mathrm{text},\mathrm{box})$ 或 $(\mathrm{image},\mathrm{region},\mathrm{answer})$, 将文本与 box, point 或 mask 对齐. 它既能训练目标定位, 也能要求模型为回答提供视觉证据. 医疗病灶定位与 GUI click 都依赖同一基础能力, 但坐标系统和评价标准不同. 图像预处理发生 resize 或 crop 时, 训练标签必须同步变换, 否则模型会学到错误位置.
 
 ### 6.2 Video
 
-Video VLM 将视频表示为帧序列 $V = \{I_1,I_2,\dots,I_T\}$. Video Caption 和 QA 提供内容监督, action recognition 与 temporal reasoning 强调状态变化和先后关系. 训练时需要记录帧顺序, 加入时间位置, 并用帧采样或 token compression 控制上下文. 如果数据只包含单帧可回答的问题, 模型即使在 Video QA 上训练也可能没有学到真正的时间理解.
+Video VLM 将视频表示为帧序列 $V = \{I_1,I_2,\dots,I_T\}$. Video Caption, Video QA 和 action recognition 提供内容监督, temporal reasoning 强调状态变化和先后关系. **只有问题必须依赖多帧时, Video QA 才能真正训练时间理解.** 训练时还需要记录帧顺序, 加入时间位置, 并用帧采样或 token compression 控制上下文, 相关成本见 [Inference](./Inference.md).
 
 ### 6.3 Medical Domain Adaptation
 
-医疗 VLM 通常从通用 VLM 初始化, 再使用 image-report pair 建立医学图文对应, 使用医疗指令数据训练问答与报告生成, 最后加入医生偏好, grounding 和安全数据. 医疗训练不仅要提升术语和病灶识别, 还要教模型区分影像发现与最终诊断, 表达不确定性并建议专业复核. 详见 [Medical_VLM](./Medical_VLM.md).
+医疗 VLM 通常从通用 VLM 初始化, 再使用 X-ray image-report pair, CT / MRI finding, pathology caption, 医学教材图像和医疗文档 OCR 建立领域对应, 使用医疗指令数据训练问答与报告生成, 最后加入医生偏好, Grounding 和安全数据. 医疗训练不仅要提升术语和病灶识别, 还要教模型区分影像发现与最终诊断, 表达不确定性并建议专业复核. 详见 [Medical_VLM](./Medical_VLM.md).
 
 ---
 
@@ -132,7 +132,7 @@ Video VLM 将视频表示为帧序列 $V = \{I_1,I_2,\dots,I_T\}$. Video Caption
 
 多模态训练同时包含图像预处理, Vision Encoder, Projector 和 LLM, 显存通常受 activation 与长 visual sequence 影响. 大规模训练可使用 [DeepSpeed](../Framework/DeepSpeed.md) 或 [Megatron](../Framework/Megatron.md), 并结合 gradient checkpointing, mixed precision 和 [LoRA](../Finetune/PEFT.md). Dynamic Resolution 会使 batch 内序列长度变化, 需要按 visual token 数做 batching 或设置每批 token budget, 否则 padding 浪费和 OOM 会很不稳定.
 
-训练监控不能只记录 total loss. 更有价值的是分别观察 Caption, VQA, OCR, Grounding 和纯文本数据的 loss 或验证指标, 同时检查模型是否保留 text-only 能力. 当模型开始忽略图像, 常见原因包括语言数据过强, 视觉输入与答案弱相关, Projector 学习不足或 image placeholder / label mask 实现错误.
+**训练监控不能只记录 total loss.** 更有价值的是分别观察 Caption, VQA, OCR, Grounding 和纯文本数据的 loss 或验证指标, 同时检查模型是否保留 text-only 能力. 当模型开始忽略图像, 常见原因包括语言数据过强, 视觉输入与答案弱相关, Projector 学习不足或 image placeholder / label mask 实现错误.
 
 ---
 

@@ -8,27 +8,27 @@ X_v \in \mathbb{R}^{N_v \times d_v}
 H_v \in \mathbb{R}^{N'_v \times d_{\mathrm{LLM}}}
 $$
 
-Projector 至少负责维度与语义空间对齐. 在高分辨率, 多图和视频模型中, 它还承担 visual token 压缩. 因此判断一个 Connector 时需要同时看两个量: hidden size 是否完成映射, token length 是否发生变化.
+**Projector 不只负责 hidden size 映射, 还可能决定 visual token 的压缩程度.** 因此判断一个 Connector 时需要同时看两个量: hidden size 是否完成映射, token length 是否发生变化.
 
 ---
 
 ## 1. MLP Projector
 
-Linear Projector 是最简单的连接方式:
+Vision Encoder 和 LLM 的 hidden size 通常不同, 例如视觉特征可能是 1024 维, LLM hidden size 可能是 4096 维. Linear Projector 是最简单的连接方式:
 
 $$
 H_v = X_vW, \qquad W \in \mathbb{R}^{d_v \times d_{\mathrm{LLM}}}
 $$
 
-它参数少且训练稳定, 但只能做线性空间变换. 更常见的 MLP Projector 增加一层非线性:
+它参数少且训练稳定, 但只能做线性空间变换, 也不主动压缩 token. 更常见的 MLP Projector 增加一层非线性:
 
 $$
 H_v = W_2\sigma(W_1X_v)
 $$
 
-其中 $\sigma$ 通常为 GELU. LLaVA 路线广泛使用 MLP, 因为它不改变 LLM 主体结构, 可以把每个 patch feature 直接映射成 visual token, 实现和训练都比较简单. 对通用 VQA 和多模态指令微调, MLP 往往已经是很强的 baseline.
+其中 $\sigma$ 通常为 GELU. **MLP Projector 的优势是表达能力高于 Linear, 同时不改变 LLM 主体结构.** LLaVA 路线可以把每个 patch feature 直接映射成 visual token, 对通用 VQA 和多模态指令微调通常已经是很强的 baseline.
 
-MLP 的关键局限是通常保持 $N'_v = N_v$. 它完成了 feature projection, 却没有解决 token compression. 固定低分辨率图像中问题不大, 但 AnyRes tile, 多图或视频会产生大量 patch tokens, 这些 token 会完整进入 LLM, 增加 prefill 和 [KV Cache](../Inference/KV_Cache.md). 因此 MLP 路线常需要在图像预处理阶段限制 tile 数, 或额外加入 pooling / merging.
+MLP 的关键局限是通常保持 $N'_v = N_v$. 它完成了 feature projection, 却没有解决 token compression. 固定低分辨率图像中问题不大, 但 AnyRes tile, 多图或视频会产生大量 patch tokens, 这些 token 会完整进入 LLM, 增加 prefill 和 [KV Cache](../Inference/KV_Cache.md). 因此 MLP 路线常需要在图像预处理阶段限制 tile 数, 或额外加入 pooling / merging, 具体见 [Architecture](./Architecture.md).
 
 ---
 
@@ -48,7 +48,7 @@ $$
 Q' = \mathrm{CrossAttention}(Q,X_v)
 $$
 
-无论原图产生多少 patch, 输出长度都固定为 $M$, 通常满足 $M \ll N_v$. Q-Former 因此不是逐 patch 映射, 而是让少量 query 主动提取与语言任务相关的视觉摘要. 它适合冻结两侧大模型并低成本训练中间接口.
+无论原图产生多少 patch, 输出长度都固定为 $M$, 通常满足 $M \ll N_v$. **Q-Former 不是逐 patch 映射, 而是用少量 learnable queries 主动读取并压缩视觉信息.** 它适合冻结两侧大模型并低成本训练中间接口.
 
 固定 query 数同时构成信息瓶颈. 对场景语义和 Caption, 少量视觉摘要可能足够; 对 OCR, 文档和 dense grounding, 每个局部区域都可能包含答案, 过度压缩容易丢失小字和空间细节.
 
@@ -62,7 +62,7 @@ $$
 
 它更强调把不同图片或视频帧统一成固定长度 visual latents, 便于处理 interleaved image-text 和 multimodal few-shot context. Resampler 通常与 LLM 中间层的 gated cross-attention 配合, 而不是简单地把所有 visual latents 放到文本前缀.
 
-Q-Former 和 Perceiver Resampler 都属于 learnable query / latent compression. 前者的代表用途是低成本连接冻结模型, 后者更强调多图交错输入. 两者都用可控 token 数换取推理效率, 也都需要接受压缩造成的信息损失.
+**Q-Former 更强调连接冻结模型, Perceiver Resampler 更强调多图和 interleaved context.** 两者都属于 learnable query / latent compression, 用可控 token 数换取推理效率, 也都需要接受压缩造成的信息损失.
 
 ---
 
@@ -74,7 +74,7 @@ $$
 N_v = f(H,W)
 $$
 
-Patch Merger 将相邻 patch 的特征组合并投影, 使输出满足 $N'_v < N_v$. 与固定 query 的全局读取相比, spatial merger 通常按照局部邻域压缩, 因而更容易保留二维结构. 这对 OCR, Document QA 和 Chart QA 很重要, 因为文字内容与所在区域都需要进入 LLM.
+Patch Merger 将相邻 patch 的特征组合并投影, 使输出满足 $N'_v < N_v$. **与固定 query 的全局摘要相比, Patch Merger 按局部邻域压缩, 更容易保留二维结构.** 这对 OCR, Document QA 和 Chart QA 很重要, 因为文字内容与所在区域都需要进入 LLM.
 
 压缩率越高, LLM 成本越低, 但小文字和局部目标越容易被合并掉. 因此 Patch Merger 需要和 Vision Encoder 分辨率一起设计: Dynamic Resolution 负责获取细节, Merger 负责把这些细节压缩到可接受的 token budget. 只提高分辨率而没有 token 控制, 会把成本直接转移给 LLM; 只提高压缩率, 又会抵消高分辨率带来的收益.
 
@@ -97,7 +97,7 @@ $$
 [\text{visual tokens};\text{text tokens}]
 $$
 
-这种方法直接复用 decoder-only LLM 的 Self-Attention, 不需要修改每个 Transformer block. 多图场景则可以按照 `<image_1> text_1 <image_2> text_2` 交错插入, 使图像与相关文字保持局部对应. 它的代价是 visual tokens 与普通文本一样占用上下文和 KV Cache.
+**Input Token Injection 的优点是不修改 LLM block, 代价是 visual tokens 与普通文本一样占用上下文和 KV Cache.** 多图场景可以按照 `<image_1> text_1 <image_2> text_2` 交错插入, 使图像与相关文字保持局部对应.
 
 ### 4.2 Cross-Attention Injection
 
@@ -119,7 +119,7 @@ $$
 
 ## 5. Projector 训练
 
-Projector Alignment 阶段通常冻结 Vision Encoder 和 LLM, 只用 image-caption 或简单 VQA 数据训练 Connector. 这样可以先建立稳定的视觉到语言映射, 避免陌生 visual embeddings 直接扰动 LLM. 该阶段成本低, 但只靠简单 Caption 学到的接口通常不足以支持复杂问答.
+Projector Alignment 阶段通常冻结 Vision Encoder 和 LLM, 只用 image-caption 或简单 VQA 数据训练 Connector. **先对齐 Projector 的目的, 是避免陌生 visual embeddings 在训练初期直接扰动 LLM.** 该阶段成本低, 但只靠简单 Caption 学到的接口通常不足以支持复杂问答.
 
 Multimodal Instruction Tuning 时, 常见做法是继续全量训练 Projector, 同时对 LLM 使用 [LoRA](../Finetune/PEFT.md) 或全参数微调. Vision Encoder 可以保持冻结, 也可以解冻后部层以适配 OCR 和医疗等领域. 高性能模型可能联合训练三个模块, 上限更高, 但需要更谨慎的 learning rate, 数据配比和分布式训练, 可参考 [DeepSpeed](../Framework/DeepSpeed.md) 与 [Megatron](../Framework/Megatron.md).
 

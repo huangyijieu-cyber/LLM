@@ -16,7 +16,7 @@ $$
 \text{LLM}
 $$
 
-相比纯 LLM, VLM 多出 Vision Encoder 的固定计算, 也因为 visual tokens 增加了 prefill 与 [KV Cache](../Inference/KV_Cache.md) 成本. 分辨率, 图片数量和视频帧数最终都会汇总成同一个工程问题: **一次请求需要向 LLM 输入多少 visual tokens**.
+相比纯 LLM, VLM 多出 Vision Encoder 的固定计算, 也因为 visual tokens 增加了 prefill 与 [KV Cache](../Inference/KV_Cache.md) 成本. **分辨率, 图片数量和视频帧数最终都会汇总成同一个工程问题: 一次请求需要向 LLM 输入多少 visual tokens.**
 
 ---
 
@@ -32,7 +32,7 @@ $$
 
 随后 [Projector](./Projector.md) 将 hidden size 映射到 LLM space. MLP 通常保留 token 数量, Q-Former 与 Perceiver Resampler 输出固定数量 query / latent, Patch Merger 则按空间邻域压缩 patch. 得到的 visual embeddings 会替换 prompt 中的 `<image>` placeholder, 或通过 LLM 中间层的 cross-attention 被读取.
 
-拼接后的输入进入 LLM prefill. 此时模型一次性处理全部 visual tokens 和 text prompt, 并建立 KV Cache. Decode 阶段再逐 token 生成回答并复用缓存. 因此高分辨率和多图输入主要增加 **首 token 延迟和缓存显存**, 输出长度则主要影响后续 decode 时间.
+拼接后的输入进入 LLM prefill. 此时模型一次性处理全部 visual tokens 和 text prompt, 并建立 KV Cache. Decode 阶段再逐 token 生成回答并复用缓存. **高分辨率和多图输入主要增加首 token 延迟与缓存显存, 输出长度主要影响后续 decode.**
 
 ---
 
@@ -50,7 +50,7 @@ $$
 N_v \propto \frac{H \times W}{P^2}
 $$
 
-分辨率在高和宽上同时放大时, token 数按面积增长. 更多 visual tokens 会增加 LLM prefill, 扩大每层 KV Cache, 降低可用 batch size, 也使 continuous batching 中不同请求的长度差异更大. Dynamic Resolution 虽然避免把文档和长图压缩到固定低分辨率, 但 sequence length 变成 $N_v=f(H,W)$, 显存与调度更难提前估算.
+分辨率在高和宽上同时放大时, token 数按面积增长. 更多 visual tokens 会增加 LLM prefill, 扩大每层 KV Cache, 降低可用 batch size, 也使 continuous batching 中不同请求的长度差异更大. **Qwen-VL 等模型的 Dynamic Resolution 提高了细节保留能力, 但让 sequence length 变成 $N_v=f(H,W)$, 从而增加 padding, 显存预算和调度难度.**
 
 Visual token budget 不能只追求越小越好. OCR, Chart 和医学影像中的关键信息可能只占很小区域, 过度 pooling 或 pruning 会让模型失去证据. 实际部署通常根据任务设置分辨率上限, tile 上限和每张图片的最大 token 数, 在准确率与吞吐之间选择工作点.
 
@@ -64,7 +64,7 @@ $$
 N_v = \sum_{i=1}^{K}N_{v,i}
 $$
 
-除成本增长外, 多图任务还需要清晰的 image placeholder 与顺序. Prompt 应明确 `image_1`, `image_2` 分别代表什么, 对比问题应指出比较维度. 如果所有图片 token 连续拼接却没有边界和位置标识, 模型容易把不同图片中的对象或文字混在一起. 医学检查前后对比, 多页文档和多视角商品分析都存在这个问题.
+除成本增长外, 多图任务还需要清晰的 image placeholder 与顺序. Prompt 应明确 `image_1`, `image_2` 分别代表什么, 对比问题应指出比较维度. 如果所有图片 token 连续拼接却没有边界和位置标识, 模型容易把不同图片中的对象或文字混在一起. 医学检查前后对比, 多页文档, GUI Agent 截图序列和多视角商品分析都存在这个问题.
 
 Video VLM 通常先把视频采样为 $T$ 帧, 总 token 数近似为:
 
@@ -72,7 +72,7 @@ $$
 N_v = T \times N_{\mathrm{frame}}
 $$
 
-Uniform sampling 覆盖完整时间轴但可能漏掉短暂关键动作; keyframe 或 scene-change sampling 更关注变化, 却需要额外策略; adaptive sampling 可以根据内容或问题选择帧, 工程上最复杂. 长视频还可以使用 temporal pooling, frame token merging 或分段总结. 无论使用哪种方法, 都需要保留时间顺序和时间戳, 否则模型只能理解多张独立图片, 无法判断事件先后和状态变化.
+Uniform sampling 或固定 FPS sampling 覆盖完整时间轴但可能漏掉短暂关键动作; keyframe 或 scene-change sampling 更关注变化, 却需要额外策略; timestamp sampling 适合已知时间范围的问题; adaptive sampling 可以根据内容或问题选择帧, 工程上最复杂. 长视频还可以使用 temporal pooling, frame token merging 或分段总结. **无论使用哪种采样方法, 都必须保留时间顺序和时间戳**, 否则模型只能理解多张独立图片.
 
 |输入类型|主要瓶颈|常见控制方式|
 |---|---|---|
@@ -88,7 +88,7 @@ Uniform sampling 覆盖完整时间轴但可能漏掉短暂关键动作; keyfram
 
 [vLLM](../Framework/vllm.md) 的 PagedAttention, continuous batching 和高吞吐调度可以扩展到多模态模型, 但还需要模型专用 image processor, Vision Encoder forward, multimodal input schema 与 visual token insertion. 它适合通用在线服务, 大批量推理和 [RLHF](../Align/RLHF.md) / [GRPO](../Align/GRPO.md) rollout.
 
-[SGLang](../Framework/SGLang.md) 更强调复杂生成程序, prefix cache 和结构化输出, 适合多轮视觉工具调用, GUI Agent, 同一视觉上下文上的多步推理等 workflow. 框架选择不是由模型精度决定, 而是由请求模式决定: 简单独立请求重视 batching 吞吐, 多轮共享图像和 prompt 的任务更重视 prefix / visual feature 复用.
+[SGLang](../Framework/SGLang.md) 更强调复杂生成程序, prefix cache 和结构化输出, 适合多轮视觉工具调用, GUI Agent, 同一视觉上下文上的多步推理等 workflow. **Serving 框架的选择主要由请求模式决定, 而不是由模型精度决定.** 简单独立请求重视 batching 吞吐, 多轮共享图像和 prompt 的任务更重视 prefix / visual feature 复用.
 
 部署时还要确认框架是否完整支持目标模型的 processor, Dynamic Resolution, 多图输入和自定义位置编码. 即使 LLM backbone 名称相同, 不同 VLM 的 placeholder 展开规则和 visual token 顺序也可能不同, 不能只加载文本权重配置.
 
@@ -100,7 +100,7 @@ Uniform sampling 覆盖完整时间轴但可能漏掉短暂关键动作; keyfram
 
 同一张图片被多次提问时, 可以缓存 Vision Encoder 输出 $X_v$ 或 Projector 输出 $H_v$, 避免重复视觉 forward. 同一文档多字段抽取, 同一医学影像多轮问答和固定 GUI 截图都适合使用视觉特征缓存. 缓存必须绑定模型与 processor 版本, 图像预处理参数也必须一致.
 
-如果请求共享相同 visual tokens 和系统 prompt, 还可以复用 prefix KV Cache. Visual feature cache 节省视觉编码, prefix cache 进一步节省 LLM prefill, 两者作用位置不同. 高并发服务需要为缓存设置容量, key 和淘汰策略, 并避免不同用户之间的数据泄露.
+如果请求共享相同 visual tokens 和系统 prompt, 还可以复用 prefix KV Cache. **Visual feature cache 节省视觉编码, prefix cache 节省 LLM prefill, 两者作用位置不同.** 高并发服务需要为缓存设置容量, key 和淘汰策略, 并避免不同用户之间的数据泄露.
 
 ### 5.2 控制 Visual Tokens
 
@@ -108,7 +108,7 @@ Q-Former, Perceiver Resampler 和 Patch Merger 在模型结构内压缩 token; p
 
 ### 5.3 Quantization 和并行
 
-INT8, INT4 和 FP8 等量化主要减少模型权重显存并提高吞吐, 但 Vision Encoder, Projector 和 LLM 可能需要不同量化策略. OCR 与医疗场景依赖细粒度差异, 应通过分项评测确认低比特量化是否造成感知或安全回退. 对超大模型还可以使用 tensor parallel, pipeline parallel 或多实例部署, 相关方法见 [Distributed Training](../Distributed_Training/Main.md).
+INT8, INT4 和 FP8 等量化主要减少模型权重显存并提高吞吐, 但 Vision Encoder, Projector 和 LLM 可能需要不同量化策略. **量化是否可用必须通过 OCR, Grounding 和医疗等细粒度分项评测确认.** 对超大模型还可以使用 tensor parallel, pipeline parallel 或多实例部署, 相关方法见 [Distributed Training](../Distributed_Training/Main.md).
 
 ---
 

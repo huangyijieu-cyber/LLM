@@ -1,6 +1,6 @@
 # VLM Data Process
 
-VLM 数据工程的目标不是把所有图文样本放进同一个数据集, 而是让每类数据承担清晰的训练作用. Image-text pair 建立基础语义对齐, Caption 训练生成描述, Instruction data 训练按问题使用视觉证据, OCR 与 Grounding 数据补充细粒度能力, Video 和 Medical 数据负责特定分布. 数据规模决定覆盖范围, 数据质量与配比则决定模型最终更愿意学什么.
+**VLM 数据工程的核心是让数据类型和目标能力一一对应.** Image-text pair 建立基础语义对齐, Caption 训练生成描述, Instruction data 训练按问题使用视觉证据, OCR 与 Grounding 数据补充细粒度能力, Video 和 Medical 数据负责特定分布. 数据规模决定覆盖范围, 数据质量与配比则决定模型最终更愿意学什么.
 
 |数据类型|主要作用|常见风险|
 |---|---|---|
@@ -21,13 +21,13 @@ VLM 数据工程的目标不是把所有图文样本放进同一个数据集, �
 
 最基础的数据形式为 $(I,T)$, 其中 $T$ 可以是网页 alt-text, title 或与图片相关的自然文本. 这类数据规模大, 适合训练 CLIP / SigLIP 式图文对齐模型和可复用 [Vision Encoder](./Vision_Encoder.md), 但文本与图片经常只有弱相关关系. 例如商品页标题可能包含品牌和促销信息, 并不等于图片的准确描述.
 
-清洗时首先过滤低分辨率, 模糊, 广告, 水印和纯装饰图片, 再使用 CLIP score 或 VLM judge 检查图文相关性. 还需要处理精确重复和近似重复图片, 隐私与版权风险. Image-text pair 提供的是表示学习信号, 不应期望它直接产生复杂问答和指令能力.
+清洗时首先过滤低分辨率, 模糊, 广告, 水印和纯装饰图片, 再使用 CLIP score 或 VLM judge 检查图文相关性. 还需要处理精确重复和近似重复图片, 隐私与版权风险. **Image-text pair 提供的是表示学习信号, 不能替代 Instruction data.**
 
 ### 1.2 Caption
 
 Caption 数据写为 $(I,\mathrm{caption})$, 比网页弱文本更直接地描述图像内容. 人工 Caption 准确且幻觉少, 但成本高, 规模和表达风格有限. 使用强 VLM 合成 Caption 可以快速扩大规模, 还可以定向生成 OCR, Chart 或 Medical 描述, 但会继承 teacher 的视觉错误, 语言风格和内容偏差.
 
-合成数据不能只在生成端做 prompt 约束, 还要在生成后检查实体, 数量和属性是否能从图像中得到. 对重要领域应进行分层抽样复核, 按来源和 teacher 版本追踪质量. Caption 适合 [Training](./Training.md) 中的生成式预训练与 Projector Alignment, 但占比过高会让模型默认描述整张图, 而不是回答具体问题.
+合成数据不能只在生成端做 prompt 约束, 还要在生成后检查实体, 数量和属性是否能从图像中得到. 对重要领域应进行分层抽样复核, 按来源和 teacher 版本追踪质量. **Caption 占比过高会让模型默认描述整张图, 而不是回答具体问题.** 它适合 [Training](./Training.md) 中的生成式预训练与 Projector Alignment, 但必须和 Instruction data 配合.
 
 ---
 
@@ -41,7 +41,7 @@ $$
 
 其中 $I$ 是一张或多张图像, $x$ 是用户问题, $y$ 是目标回答. 同一数据格式可以承载 Caption, VQA, OCR QA, Region QA, 多图比较, 多轮对话, 选择题和结构化抽取, 但格式相同不代表训练信号相同.
 
-Instruction data 可以来自人工标注, 已有 VQA 数据集转换, 强 VLM 合成, 或由 LLM 根据 Caption, OCR 文本, 表格与 Grounding 标注构造问题. 合成时最重要的检查是 **问题是否真的需要看图, 答案是否能由图像证据支持**. 如果问题可以只凭常识回答, 模型会学会绕过视觉输入; 如果答案包含图中没有的信息, 则会直接训练视觉幻觉.
+Instruction data 可以来自人工标注, 已有 VQA 数据集转换, 强 VLM 合成, 或由 LLM 根据 Caption, OCR 文本, 表格与 Grounding 标注构造问题. **最重要的检查是问题是否真的需要看图, 答案是否能由图像证据支持.** 如果问题可以只凭常识回答, 模型会学会绕过视觉输入; 如果答案包含图中没有的信息, 则会直接训练视觉幻觉.
 
 多轮数据还要检查代词和图片引用是否一致, 不同轮次是否错误地交换图片, 以及后续答案是否依赖前文未提供的信息. 结构化输出需要验证 JSON / schema 合法性, 字段语义稳定性和缺失值处理. 对选择题则要随机化选项顺序, 避免答案位置偏置.
 
@@ -51,25 +51,35 @@ Instruction data 可以来自人工标注, 已有 VQA 数据集转换, 强 VLM �
 
 ### 3.1 OCR, Document 和 Chart
 
-OCR 数据包括自然场景文字, 网页截图, 表单, 票据和 PDF 页面. Document QA 进一步要求保留标题, 段落, 表格与字段之间的二维关系, Chart QA 则需要图例, 坐标轴和数值关系. 因此不能只保留 OCR 转写文本而丢弃 bounding box 或 layout, 否则模型只能学习内容, 无法学习 "文字在哪里以及彼此如何关联".
+OCR 数据包括 TextVQA 类自然场景文字, 网页截图, 表单, 票据和 PDF 页面. Document QA 进一步要求保留标题, 段落, 表格与字段之间的二维关系, Chart QA 则需要图例, 坐标轴和数值关系. **不能只保留 OCR 转写文本而丢弃 bounding box 或 layout**, 否则模型只能学习内容, 无法学习 "文字在哪里以及彼此如何关联".
 
-清洗时应检查图像是否足够清晰, OCR 标注是否与图片一致, 表格行列是否被破坏, 答案能否在页面中定位. 多页文档还要保留页码与顺序, 并避免把答案页之外的内容错误地拼入当前样本. 这类数据通常需要 [Architecture](./Architecture.md) 中的高分辨率输入策略, 同时也会提高 visual token 成本.
+清洗时应检查图像是否足够清晰, OCR 标注是否与图片一致, 表格行列是否被破坏, 答案能否在页面中定位. 多页文档还要保留页码与顺序, 并避免把答案页之外的内容错误地拼入当前样本. 这类数据通常需要 [Architecture](./Architecture.md) 中的 AnyRes, Dynamic Resolution 或 Dynamic High Resolution, 同时也会提高 visual token 成本.
+
+结构化抽取还需要保证 schema 稳定和 JSON 合法, 对图像中不存在的字段明确使用 `null` 或 `unknown`, 不能由模型补全:
+
+```json
+{
+  "date": "...",
+  "amount": "...",
+  "items": []
+}
+```
 
 ### 3.2 Grounding
 
-Grounding 样本可以表示为 $(I,\mathrm{text},\mathrm{box})$ 或 $(I,\mathrm{region},\mathrm{answer})$, 标注形式还包括 point, mask, region caption 和 referring expression. 它训练模型在语言与具体区域之间建立对应, 可用于对象定位, GUI click, 文档证据返回和医学病灶定位.
+Grounding 样本可以表示为 $(I,\mathrm{text},\mathrm{box})$ 或 $(I,\mathrm{region},\mathrm{answer})$, 标注形式还包括 point, segmentation mask, region caption 和 referring expression. 它训练模型在语言与具体区域之间建立对应, 可用于对象定位, GUI click, 文档证据返回和医学病灶定位.
 
-Grounding 清洗的核心是坐标一致性. 需要明确坐标采用像素值还是归一化范围, 检查 box 是否越界, 文本是否描述该区域, 并在 resize, crop, padding 或 tile 后同步转换标注. 训练坐标与 [Evaluation](./Evaluation.md) 使用的原图坐标不一致时, 会出现模型理解正确但输出位置系统性偏移的问题.
+**Grounding 清洗的核心是坐标一致性.** 需要明确坐标采用像素值还是归一化范围, 检查 box 是否越界, 文本是否描述该区域, 并在 resize, crop, padding 或 tile 后同步转换标注. 训练坐标与 [Evaluation](./Evaluation.md) 使用的原图坐标不一致时, 会出现模型理解正确但输出位置系统性偏移的问题.
 
 ---
 
 ## 4. Video 和 Medical 数据
 
-Video 数据通常由原视频, 抽样帧, 时间戳与 Caption / QA 组成. Uniform sampling 实现简单, keyframe 或 scene-change sampling 更容易保留关键事件. 数据构造应包含必须比较不同时间点才能回答的问题, 否则模型可能只依赖单帧完成 Video QA, 没有学到真正的 temporal reasoning. 长视频还需要去除重复与无关片段, 对齐语音, 字幕和时间戳, 并控制每条样本的 frame / token budget.
+Video 数据通常由原视频, 抽样帧, 时间戳与 Caption / QA 组成, 任务还包括 action recognition, temporal reasoning 和时间戳定位. Uniform sampling 实现简单, keyframe 或 scene-change sampling 更容易保留关键事件. **数据必须包含需要比较不同时间点才能回答的问题**, 否则模型可能只依赖单帧完成 Video QA. 长视频还需要去除重复与无关片段, 对齐语音, 字幕和时间戳, 并控制每条样本的 frame / token budget, 相关成本见 [Inference](./Inference.md).
 
 医疗多模态数据包括 X-ray 与报告, CT / MRI 影像与 finding, 病理图像 patch, Medical VQA, 医疗文档 OCR, 病历与检查图像, 以及 lesion box / mask. 这类数据需要先完成 PHI 脱敏, 包括姓名, ID, 电话, 地址, 检查号和可识别时间信息. 还要检查影像与报告是否来自同一次检查, 区分当前发现与历史病灶, 统一同义词和缩写, 过滤模板化或互相矛盾的报告. 具体见 [Medical_VLM](./Medical_VLM.md).
 
-医疗报告中可能包含年龄, 病史或其他检查结果, 这些信息不一定能从当前图像推断. 如果直接把完整报告作为图像 Caption, 模型会被训练去 "猜" 非视觉信息. 数据构造时应区分 image-grounded finding 与额外临床上下文.
+医疗报告中可能包含年龄, 病史或其他检查结果, 这些信息不一定能从当前图像推断. **数据构造时必须区分 image-grounded finding 与额外临床上下文**, 否则模型会被训练去 "猜" 图像中不可见的信息.
 
 ---
 
@@ -78,7 +88,7 @@ Video 数据通常由原视频, 抽样帧, 时间戳与 Caption / QA 组成. Uni
 数据清洗适合按固定管线进行, 这样每一步的过滤原因都可以追踪:
 
 1. **格式与媒体检查**: 验证文件可读, 尺寸, 宽高比, 帧数和文本编码正常, 过滤损坏与明显低质样本.
-2. **去重与污染检查**: 对图像做 hash / perceptual hash, 对文本和 QA 做近似去重, 并与验证集和评测集比对.
+2. **去重与污染检查**: 对图像做 hash / perceptual hash, 对文本和 QA 做近似去重, 并与验证集和评测集比对. 通用去重方法可参考 [Pretrain Data Process](../Pretrain/Data_Process.md).
 3. **图文一致性检查**: 使用 CLIP score, OCR, VLM judge 和规则确认文本或答案由视觉内容支持.
 4. **任务与标签检查**: 验证选择题答案, 坐标, JSON schema, 多轮引用, 时间戳和医疗配对关系.
 5. **安全与合规检查**: 过滤隐私, 未授权身份信息, 不安全内容和高风险版权来源, 对医疗数据执行专门脱敏.
@@ -91,7 +101,7 @@ Video 数据通常由原视频, 抽样帧, 时间戳与 Caption / QA 组成. Uni
 
 ## 6. 数据配比和采样
 
-VLM 的数据配比本质上是能力配比. OCR 数据不足时模型读字弱; Caption 过多时模型倾向于描述; 合成 QA 过多时回答风格单一; Grounding 太少时模型难以返回证据; 医疗数据比例过高且缺少通用回放时, 又可能损害通用视觉与语言能力.
+**VLM 的数据配比本质上是能力配比.** OCR 数据不足时模型读字弱; Caption 过多时模型倾向于描述; 合成 QA 过多时回答风格单一; Grounding 太少时模型难以返回证据; 医疗数据比例过高且缺少通用回放时, 又可能损害通用视觉与语言能力.
 
 训练时可以按任务建立 sampling weight, 再根据验证集表现动态调整. 通用图像理解提供基础覆盖, OCR / Document 负责文字和布局, Reasoning 提供复杂问答, Grounding 提供空间证据, Video 提供时间关系, Medical 提供领域适配, Preference 与 Safety 数据约束输出行为. 低资源专项任务不一定需要和通用数据等量, 但必须在每个训练阶段稳定出现, 避免被大规模 Caption 数据淹没.
 

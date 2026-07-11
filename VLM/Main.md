@@ -16,7 +16,7 @@ $$
 \text{Text / Box / Structure}
 $$
 
-VLM 的重点不是让 LLM 直接读取像素, 而是把视觉信息转换为一组 **visual tokens**, 再让 LLM 通过 [Attention](../basic/Attention.md) 联合处理 visual tokens 和 text tokens.
+**VLM 的重点不是让 LLM 直接读取像素, 而是把视觉信息转换为 visual tokens, 再让 LLM 联合处理视觉与文本上下文.** 其中 LLM 的基础结构见 [Transformer](../basic/Transformer%20架构.md), 融合过程依赖 [Attention](../basic/Attention.md).
 
 ---
 
@@ -30,7 +30,7 @@ $$
 N_v \approx \frac{H \times W}{P^2}
 $$
 
-提高分辨率可以改善 OCR, 文档, 图表和小目标识别, 但也会增加 LLM prefill, [KV Cache](../Inference/KV_Cache.md) 和 serving 调度成本. 因此主流架构都在解决两个问题: 如何保留足够的视觉细节, 以及如何控制进入 LLM 的 visual token 数量.
+提高分辨率可以改善 OCR, 文档, 图表和小目标识别, 但也会增加 LLM prefill, [KV Cache](../Inference/KV_Cache.md) 和 serving 调度成本. **因此主流架构都在解决两个问题: 如何保留足够的视觉细节, 以及如何控制进入 LLM 的 visual token 数量.**
 
 ---
 
@@ -63,7 +63,7 @@ VLM 的能力可以按视觉证据的形式划分. 通用 VQA 和 Caption 主要
 
 ### 3.3 Decoder-Only VLM 路线
 
-当前开源 VLM 的主流做法是将 visual tokens 直接放入 decoder-only LLM 的上下文. 这条路线保留了 LLM 原有的生成接口, 便于复用 [SFT](../Finetune/Main.md), [DPO](../Align/DPO.md) 和 RL 等后训练方法.
+当前开源 VLM 的主流做法是将 visual tokens 直接放入 decoder-only LLM 的上下文. 这条路线保留了 LLM 原有的生成接口, 便于复用 [SFT](../Finetune/Main.md), [DPO](../Align/DPO.md), [RLHF](../Align/RLHF.md) 和 [GRPO](../Align/GRPO.md) 等后训练方法. 常见语言基座包括 LLaMA / Vicuna, Qwen, InternLM, Mistral 和 DeepSeek 等, 但基座名称不是架构分类的关键, 关键仍是视觉 token 如何进入并参与 LLM 计算.
 
 |路线|核心设计|主要特点|
 |---|---|---|
@@ -92,7 +92,7 @@ $$
 \text{Domain Adaptation}
 $$
 
-图文预训练为视觉特征建立语言语义, Projector Alignment 让视觉表示能够进入 LLM, Multimodal Instruction Tuning 让模型学会根据图像执行指令. Preference Alignment 用于减少幻觉, 改善格式和安全性, 医疗, 文档, 视频等能力则依赖专门的数据与继续训练. 具体流程见 [Training](./Training.md).
+**图文预训练建立语义, Projector Alignment 对齐接口, Instruction Tuning 学习任务, Preference Alignment 约束回答行为.** 医疗, 文档, 视频等能力还依赖专门的数据与继续训练. 具体流程见 [Training](./Training.md).
 
 数据和能力需要一一对应. Image-text pair 适合学习基础对齐, Caption 数据训练描述能力, Instruction data 训练问答和指令遵循, OCR / Grounding / Video / Medical 数据负责补足专项能力. 数据构造, 清洗和配比见 [Data_Process](./Data_Process.md).
 
@@ -100,7 +100,7 @@ $$
 
 ## 5. 推理和评测
 
-VLM 推理在普通 LLM 之前增加了图像预处理, Vision Encoder forward 和 Projector forward. 真正影响吞吐的关键通常不是 Projector 参数量, 而是 visual tokens 增加了输入长度, 从而扩大 prefill 和 KV Cache. 多图, 高分辨率和视频场景都需要显式管理 visual token budget, 详见 [Inference](./Inference.md).
+VLM 推理在普通 LLM 之前增加了图像预处理, Vision Encoder forward 和 Projector forward. **真正影响吞吐的关键通常不是 Projector 参数量, 而是 visual tokens 增加了输入长度, 从而扩大 prefill 和 KV Cache.** 多图, 高分辨率和视频场景都需要显式管理 visual token budget, 详见 [Inference](./Inference.md).
 
 VLM 评测也不能只看一个综合分数. 模型回答错误时, 需要区分是视觉感知失败, OCR 失败, 推理失败还是视觉幻觉. 因此评测通常组合通用 VQA, OCR / Document, Reasoning, Grounding, Hallucination, Video 和 Medical 等维度, 详见 [Evaluation](./Evaluation.md).
 
