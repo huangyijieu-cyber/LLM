@@ -1,401 +1,147 @@
 # Projector
 
-Projector 也叫 Connector, Adapter 或 Multimodal Projector. 它是 VLM 中连接 [Vision Encoder](./Vision_Encoder.md) 和 LLM 的桥.
-
-它的核心任务是:
-
-**把 Vision Encoder 输出的视觉特征映射到 LLM 能理解的 embedding space.**
-
-形式上:
+Projector 也叫 Connector, Adapter 或 Multimodal Projector, 位于 [Vision Encoder](./Vision_Encoder.md) 和 LLM 之间. Vision Encoder 输出的是视觉特征空间, LLM 接收的是语言 hidden space, 因而两者不能简单地直接连接:
 
 $$
 X_v \in \mathbb{R}^{N_v \times d_v}
+\xrightarrow{f_{\mathrm{proj}}}
+H_v \in \mathbb{R}^{N'_v \times d_{\mathrm{LLM}}}
 $$
 
-经过 Projector:
-
-$$
-H_v = f_{\text{proj}}(X_v) \in \mathbb{R}^{N'_v \times d_{\text{LLM}}}
-$$
-
-其中:
-
-- $N_v$: 原始 visual token 数量.
-- $d_v$: Vision Encoder hidden size.
-- $N'_v$: 投影后的 visual token 数量.
-- $d_{\text{LLM}}$: LLM hidden size.
-
-Projector 不只是维度转换模块. 它还会影响 visual token 数量, 视觉信息压缩程度, 训练稳定性和推理成本.
+Projector 至少负责维度与语义空间对齐. 在高分辨率, 多图和视频模型中, 它还承担 visual token 压缩. 因此判断一个 Connector 时需要同时看两个量: hidden size 是否完成映射, token length 是否发生变化.
 
 ---
 
-## 1. 为什么需要 Projector
+## 1. MLP Projector
 
-Vision Encoder 和 LLM 的 embedding 空间通常不同.
+Linear Projector 是最简单的连接方式:
 
-例如:
+$$
+H_v = X_vW, \qquad W \in \mathbb{R}^{d_v \times d_{\mathrm{LLM}}}
+$$
 
-- CLIP vision hidden size 可能是 1024.
-- LLaMA hidden size 可能是 4096.
+它参数少且训练稳定, 但只能做线性空间变换. 更常见的 MLP Projector 增加一层非线性:
 
-直接把视觉特征送入 LLM 会有两个问题:
+$$
+H_v = W_2\sigma(W_1X_v)
+$$
 
-1. 维度不匹配.
-2. 语义空间不匹配.
+其中 $\sigma$ 通常为 GELU. LLaVA 路线广泛使用 MLP, 因为它不改变 LLM 主体结构, 可以把每个 patch feature 直接映射成 visual token, 实现和训练都比较简单. 对通用 VQA 和多模态指令微调, MLP 往往已经是很强的 baseline.
 
-Projector 需要解决:
-
-1. **维度对齐**: $d_v \rightarrow d_{\text{LLM}}$.
-2. **语义对齐**: 把视觉特征翻译成语言模型可理解的表示.
-3. **token 压缩**: 减少 visual token 数量.
-4. **训练稳定性**: 减少直接微调 LLM 的难度.
-5. **推理成本控制**: 降低 high-resolution, multi-image, video 场景下的 token 压力.
+MLP 的关键局限是通常保持 $N'_v = N_v$. 它完成了 feature projection, 却没有解决 token compression. 固定低分辨率图像中问题不大, 但 AnyRes tile, 多图或视频会产生大量 patch tokens, 这些 token 会完整进入 LLM, 增加 prefill 和 [KV Cache](../Inference/KV_Cache.md). 因此 MLP 路线常需要在图像预处理阶段限制 tile 数, 或额外加入 pooling / merging.
 
 ---
 
-## 2. Linear Projector
+## 2. Query-Based Connector
 
-Linear Projector 是最简单的方式:
+### 2.1 Q-Former
 
-$$
-H_v = X_v W
-$$
-
-其中:
-
-$$
-W \in \mathbb{R}^{d_v \times d_{\text{LLM}}}
-$$
-
-### 2.1 特点
-
-1. **实现简单**.
-2. **参数少**.
-3. **训练稳定**.
-4. **表达能力有限**.
-5. **不主动压缩 token 数量**.
-
-Linear Projector 适合早期对齐或小规模实验, 但现代 VLM 更常使用 MLP Projector 或更复杂的 connector.
-
----
-
-## 3. MLP Projector
-
-MLP Projector 是 LLaVA 路线常用方案.
-
-常见形式:
-
-$$
-H_v = W_2 \cdot \sigma(W_1X_v)
-$$
-
-其中 $\sigma$ 可以是 GELU 或其他激活函数.
-
-### 3.1 特点
-
-1. **比 Linear 表达能力更强**.
-2. **实现仍然简单**.
-3. **不改变 LLM 主体结构**.
-4. **工程上非常常见**.
-5. **通常不主动压缩 token 数量**.
-
-### 3.2 适合场景
-
-1. LLaVA 类架构.
-2. 通用图像问答.
-3. 多模态 instruction tuning.
-4. 作为 VLM baseline.
-
-### 3.3 局限
-
-MLP Projector 会把 patch features 基本原样映射给 LLM. 当输入是高分辨率, 多图或视频时, visual token 数量可能很大.
-
-因此 LLaVA-NeXT / OneVision 这类模型需要配合 AnyRes, tile 策略和推理优化来控制成本, 详见 [Architecture](./Architecture.md).
-
----
-
-## 4. Q-Former
-
-Q-Former 来自 [BLIP-2](https://arxiv.org/abs/2301.12597).
-
-它使用一组 learnable query tokens 从视觉特征中读取信息:
+[BLIP-2](https://arxiv.org/abs/2301.12597) 使用 Q-Former 连接冻结 Vision Encoder 和冻结 LLM. 它维护 $M$ 个 learnable query tokens:
 
 $$
 Q = \{q_1,q_2,\dots,q_M\}
 $$
 
-通过 cross-attention:
+这些 query 通过 cross-attention 从全部视觉特征中读取信息:
 
 $$
-Q' = \text{CrossAttention}(Q,X_v)
+Q' = \mathrm{CrossAttention}(Q,X_v)
 $$
 
-最后将 $Q'$ 映射给 LLM.
+无论原图产生多少 patch, 输出长度都固定为 $M$, 通常满足 $M \ll N_v$. Q-Former 因此不是逐 patch 映射, 而是让少量 query 主动提取与语言任务相关的视觉摘要. 它适合冻结两侧大模型并低成本训练中间接口.
+
+固定 query 数同时构成信息瓶颈. 对场景语义和 Caption, 少量视觉摘要可能足够; 对 OCR, 文档和 dense grounding, 每个局部区域都可能包含答案, 过度压缩容易丢失小字和空间细节.
+
+### 2.2 Perceiver Resampler
+
+[Flamingo](https://arxiv.org/abs/2204.14198) 的 Perceiver Resampler 同样使用固定数量 latent tokens 读取可变长度视觉特征:
+
+$$
+X_v \rightarrow Z, \qquad Z \in \mathbb{R}^{M \times d}
+$$
+
+它更强调把不同图片或视频帧统一成固定长度 visual latents, 便于处理 interleaved image-text 和 multimodal few-shot context. Resampler 通常与 LLM 中间层的 gated cross-attention 配合, 而不是简单地把所有 visual latents 放到文本前缀.
+
+Q-Former 和 Perceiver Resampler 都属于 learnable query / latent compression. 前者的代表用途是低成本连接冻结模型, 后者更强调多图交错输入. 两者都用可控 token 数换取推理效率, 也都需要接受压缩造成的信息损失.
 
 ---
 
-### 4.1 具体作用
+## 3. Spatial Token Merger
 
-假设原始图像有很多 patch tokens:
-
-$$
-X_v \in \mathbb{R}^{N_v \times d_v}
-$$
-
-Q-Former 输出固定数量的 query features:
-
-$$
-Q' \in \mathbb{R}^{M \times d_q}
-$$
-
-通常:
-
-$$
-M \ll N_v
-$$
-
-因此 Q-Former 本质上是一种 **query-based visual token compression**.
-
-### 4.2 特点
-
-1. **可以压缩视觉 token**.
-2. **参数效率高**.
-3. **适合冻结 Vision Encoder 和 LLM**.
-4. **结构比 MLP 复杂**.
-5. **可能损失 OCR 和 dense perception 细节**.
-
-### 4.3 和 MLP Projector 的区别
-
-|对比项|MLP Projector|Q-Former|
-|---|---|---|
-|代表模型|LLaVA|BLIP-2|
-|核心方式|逐 patch 映射|query tokens 读取视觉信息|
-|是否压缩 token|通常不压缩|明显压缩|
-|优点|简单, 易复现|token 少, 参数效率高|
-|局限|token 成本高|可能丢失细节|
-
----
-
-## 5. Perceiver Resampler
-
-Perceiver Resampler 在 [Flamingo](https://arxiv.org/abs/2204.14198) 中使用.
-
-它使用一组 latent tokens 从视觉特征中提取固定长度表示:
-
-$$
-Z = \text{Resampler}(X_v)
-$$
-
-其中 $Z$ 是固定数量的 visual latents.
-
-### 5.1 特点
-
-1. **适合多图输入**.
-2. **可以控制视觉 token 数量**.
-3. **适合 interleaved image-text 输入**.
-4. **训练和实现成本较高**.
-5. **通常和 cross-attention 注入配合使用**.
-
-### 5.2 适用场景
-
-1. 多图上下文.
-2. 图文交错输入.
-3. multimodal few-shot learning.
-4. 视频帧或多页文档压缩.
-
----
-
-## 6. Patch Merger
-
-Patch Merger 常见于 Qwen-VL 系列等高分辨率 VLM.
-
-Dynamic Resolution 会产生不同数量的 visual tokens:
+Patch Merger 常用于 Qwen-VL 等 Dynamic Resolution 架构. Dynamic Resolution 让不同尺寸图片产生不同数量的视觉 patch:
 
 $$
 N_v = f(H,W)
 $$
 
-如果直接把所有 tokens 送入 LLM, prefill 和 [KV Cache](../Inference/KV_Cache.md) 成本会很高.
+Patch Merger 将相邻 patch 的特征组合并投影, 使输出满足 $N'_v < N_v$. 与固定 query 的全局读取相比, spatial merger 通常按照局部邻域压缩, 因而更容易保留二维结构. 这对 OCR, Document QA 和 Chart QA 很重要, 因为文字内容与所在区域都需要进入 LLM.
 
-Patch Merger 的目标是:
-
-$$
-X_v \in \mathbb{R}^{N_v \times d_v}
-\rightarrow
-H_v \in \mathbb{R}^{N'_v \times d_{\text{LLM}}}
-$$
-
-其中:
-
-$$
-N'_v < N_v
-$$
-
-### 6.1 特点
-
-1. **控制高分辨率输入的 token 数**.
-2. **保留局部空间信息**.
-3. **适合 OCR, document, chart 等场景**.
-4. **需要在细节保留和压缩率之间权衡**.
-
-Patch Merger 和 Dynamic Resolution 通常一起出现, 详见 [Architecture](./Architecture.md).
+压缩率越高, LLM 成本越低, 但小文字和局部目标越容易被合并掉. 因此 Patch Merger 需要和 Vision Encoder 分辨率一起设计: Dynamic Resolution 负责获取细节, Merger 负责把这些细节压缩到可接受的 token budget. 只提高分辨率而没有 token 控制, 会把成本直接转移给 LLM; 只提高压缩率, 又会抵消高分辨率带来的收益.
 
 ---
 
-## 7. Cross-Attention Connector
+## 4. 视觉信息如何进入 LLM
 
-Cross-Attention Connector 不一定把视觉 token 直接拼到文本 token 前面, 而是在 LLM 的某些层中让文本 hidden states 通过 cross-attention 读取视觉特征.
+### 4.1 Input Token Injection
 
-形式:
-
-$$
-H_t' = \text{CrossAttention}(H_t,H_v)
-$$
-
-### 7.1 特点
-
-1. **融合能力强**.
-2. **可以在多层注入视觉信息**.
-3. **适合复杂多模态融合**.
-4. **会改变 LLM 结构**.
-5. **工程复杂度更高**.
-
-Flamingo 的 gated cross-attention 就是这一类思想.
-
----
-
-## 8. Visual Token 的插入方式
-
-### 8.1 Prefix 插入
-
-最常见方式:
-
-$$
-[\text{visual tokens}; \text{text tokens}]
-$$
-
-优点:
-
-1. 简单.
-2. 不改 LLM 结构.
-3. 适合 causal LLM.
-
-缺点:
-
-1. visual tokens 占用上下文长度.
-2. visual tokens 越多, [KV Cache](../Inference/KV_Cache.md) 越大.
-
----
-
-### 8.2 Placeholder 替换
-
-Prompt 中放一个 `<image>` token:
+LLaVA 类模型通常在 prompt 中使用 `<image>` placeholder. 实际 forward 时, 该位置会被替换成一组 visual embeddings:
 
 ```text
 USER: <image>
-What is in this image?
+What is shown in this image?
 ```
 
-实际输入时, `<image>` 会被展开成一串 visual tokens.
+对应的输入可以抽象为:
 
-这是 LLaVA, Qwen-VL 等模型常见做法.
+$$
+[\text{visual tokens};\text{text tokens}]
+$$
 
----
+这种方法直接复用 decoder-only LLM 的 Self-Attention, 不需要修改每个 Transformer block. 多图场景则可以按照 `<image_1> text_1 <image_2> text_2` 交错插入, 使图像与相关文字保持局部对应. 它的代价是 visual tokens 与普通文本一样占用上下文和 KV Cache.
 
-### 8.3 Interleaved 插入
+### 4.2 Cross-Attention Injection
 
-多图多文本场景中, 输入可能是:
+Flamingo 类模型在 LLM 的部分中间层加入 cross-attention:
 
-```text
-<image_1> text_1 <image_2> text_2 question
-```
+$$
+H_t' = \mathrm{CrossAttention}(H_t,H_v)
+$$
 
-这种方式适合:
+文本 hidden states 在生成过程中读取独立保存的视觉特征. 这种结构可以多层注入视觉信息, 对多图和复杂融合更灵活, 但需要修改 LLM block, checkpoint 和 serving 实现. Gated Cross-Attention 还会使用可学习 gate 控制视觉残差强度, 避免训练初期突然破坏预训练语言表示.
 
-1. 多图对比.
-2. 教程截图理解.
-3. Agent 操作记录.
-4. 视频帧序列.
-5. 多页文档理解.
-
----
-
-## 9. Projector 训练策略
-
-### 9.1 只训练 Projector
-
-早期对齐阶段常用:
-
-1. 冻结 Vision Encoder.
-2. 冻结 LLM.
-3. 只训练 Projector.
-
-优点:
-
-1. 稳定.
-2. 显存小.
-3. 不破坏 LLM 语言能力.
-
-缺点:
-
-1. 上限有限.
-2. 无法充分适配复杂任务.
+|注入方式|代表路线|优点|代价|
+|---|---|---|---|
+|Visual Token Prefix / Placeholder|LLaVA, Qwen-VL, InternVL|结构简单, 复用原生 LLM|占用上下文和 KV Cache|
+|Interleaved Tokens|OneVision 等多图模型|图像和文字对应关系清晰|序列更长, 顺序管理复杂|
+|Cross-Attention|Flamingo 类|多层融合, 视觉 memory 独立|需要修改 LLM 和 serving|
 
 ---
 
-### 9.2 训练 Projector + LLM LoRA
+## 5. Projector 训练
 
-常见于多模态 instruction tuning.
+Projector Alignment 阶段通常冻结 Vision Encoder 和 LLM, 只用 image-caption 或简单 VQA 数据训练 Connector. 这样可以先建立稳定的视觉到语言映射, 避免陌生 visual embeddings 直接扰动 LLM. 该阶段成本低, 但只靠简单 Caption 学到的接口通常不足以支持复杂问答.
 
-做法:
+Multimodal Instruction Tuning 时, 常见做法是继续全量训练 Projector, 同时对 LLM 使用 [LoRA](../Finetune/PEFT.md) 或全参数微调. Vision Encoder 可以保持冻结, 也可以解冻后部层以适配 OCR 和医疗等领域. 高性能模型可能联合训练三个模块, 上限更高, 但需要更谨慎的 learning rate, 数据配比和分布式训练, 可参考 [DeepSpeed](../Framework/DeepSpeed.md) 与 [Megatron](../Framework/Megatron.md).
 
-1. Vision Encoder 冻结.
-2. Projector 全量训练.
-3. LLM 使用 [LoRA](../Finetune/PEFT.md) 训练.
-
-优点:
-
-1. 成本较低.
-2. 可以适配多模态指令.
-3. 不需要全参数训练.
+训练策略的关键不是简单地决定哪些参数可训练, 而是避免各模块学习速度失衡. Projector 初始化时离 LLM embedding space 较远, 通常需要更快完成基础对齐; 已经预训练好的 Vision Encoder 和 LLM 则使用较小 learning rate, 防止通用能力被快速破坏.
 
 ---
 
-### 9.3 全参数训练
+## 6. Connector 对比
 
-高性能 VLM 可能会训练:
-
-1. Vision Encoder.
-2. Projector.
-3. LLM.
-
-优点是上限高. 缺点是成本大, 容易破坏已有能力, 需要更谨慎的数据和超参数.
-
-大规模训练通常需要 [DeepSpeed](../Framework/DeepSpeed.md), [Megatron](../Framework/Megatron.md) 等框架支持.
-
----
-
-## 10. Projector 对比
-
-|Projector|代表模型|是否压缩 token|优点|局限|
+|Connector|代表模型|Token 长度|核心优势|主要局限|
 |---|---|---|---|---|
-|Linear|早期 VLM|否|简单, 稳定|表达能力弱|
-|MLP|LLaVA|通常否|主流, 易实现|visual token 多|
-|Q-Former|BLIP-2|是|参数效率高, 可压缩|结构复杂, 可能丢细节|
-|Perceiver Resampler|Flamingo|是|适合多图和交错输入|训练复杂|
-|Patch Merger|Qwen-VL|是|适合高分辨率输入|压缩率和细节需要权衡|
-|Cross-Attention|Flamingo 类|不一定|融合能力强|改动 LLM 结构|
+|Linear|早期 VLM|基本不变|参数少, 对齐稳定|表达能力弱|
+|MLP|LLaVA|基本不变|简单, 主流, 易复现|高分辨率 token 成本高|
+|Q-Former|BLIP-2|压成固定 query 数|冻结模型连接, 参数效率高|dense detail 容易损失|
+|Perceiver Resampler|Flamingo|压成固定 latent 数|适合多图和交错上下文|通常配合复杂 cross-attention|
+|Patch Merger|Qwen-VL|按空间邻域缩短|兼顾高分辨率和局部结构|压缩率需要精细权衡|
+|Cross-Attention Connector|Flamingo 类|视觉 memory 可独立|融合能力强|修改 LLM, 工程复杂|
+
+MLP, Q-Former 和 Patch Merger 的区别可以归结为: MLP 主要改变特征维度, Q-Former 用固定 query 做全局摘要, Patch Merger 按空间邻域压缩 patch. 选择时应先判断任务是否依赖 dense visual detail, 再确定能够接受的 visual token 数量.
 
 ---
 
-## 11. 总结
+## 7. 总结
 
-Projector 是 VLM 的视觉到语言接口.
-
-1. MLP Projector 简单, 是 LLaVA 类模型的主流选择.
-2. Q-Former 通过 query tokens 压缩视觉信息, 适合冻结模型连接.
-3. Perceiver Resampler 适合多图和 interleaved image-text.
-4. Patch Merger 适合 dynamic resolution 和高分辨率输入.
-5. Cross-Attention Connector 融合能力强, 但工程复杂度更高.
-
-Projector 的选择需要同时考虑模型效果, visual token 数量, 推理成本和训练稳定性.
+Projector 是视觉表示进入语言模型的接口, 也是 VLM 中最直接的 token 信息瓶颈. MLP Projector 结构简单且仍是主流基线; Q-Former 和 Perceiver Resampler 用固定长度表示换取参数与推理效率; Patch Merger 更适合 Dynamic Resolution 下的局部压缩; Cross-Attention 提供更深的融合但增加工程复杂度. Connector 的效果必须和 [Vision_Encoder](./Vision_Encoder.md) 的输出以及 [Inference](./Inference.md) 的 token budget 一起判断.

@@ -1,13 +1,9 @@
 # VLM Training
 
-VLM 训练的核心目标是:
-
-**让模型学会视觉和语言之间的对齐, 并能根据视觉输入完成指令任务.**
-
-一个常见训练流程是:
+VLM 训练需要逐步解决三个问题: 视觉特征是否具有语言语义, visual tokens 是否能被 LLM 正确读取, 模型是否会依据图像执行具体指令. 因此现代 VLM 通常采用多阶段训练, 而不是一开始就把所有模块和数据混在一起更新.
 
 $$
-\text{Image-Text Pretraining}
+\text{Vision-Language Pretraining}
 \rightarrow
 \text{Projector Alignment}
 \rightarrow
@@ -18,147 +14,64 @@ $$
 \text{Domain Adaptation}
 $$
 
-其中不同阶段解决的问题不同:
-
-1. 图文预训练解决视觉和语言语义对齐.
-2. Projector Alignment 解决 visual tokens 如何进入 LLM.
-3. Instruction Tuning 解决模型是否会按指令看图回答.
-4. Preference Alignment 解决回答偏好, 幻觉和安全性.
-5. Domain Adaptation 解决医疗, 文档, 图表等垂直场景.
+每个阶段的边界并非固定. 有些模型直接复用 CLIP / SigLIP 视觉塔, 因而跳过视觉预训练; 有些模型进行 native multimodal pretraining, 会较早联合更新 Vision Encoder 和 LLM. 但从能力上看, 这些阶段解决的问题仍然不同.
 
 ---
 
-## 1. 图文对齐预训练
+## 1. 训练阶段总览
 
-图文对齐预训练让模型知道图片和文字之间的语义对应关系.
+|阶段|主要数据|常见训练模块|解决的问题|
+|---|---|---|---|
+|图文表征预训练|大规模 image-text pair|Vision Encoder, Text Encoder|建立图像和文本语义对齐|
+|生成式预训练|image-caption / interleaved data|VLM 或 Connector + LLM|学习根据视觉内容生成文本|
+|Projector Alignment|caption, 简单 VQA|Projector|把视觉特征映射到 LLM space|
+|Instruction Tuning|多任务 multimodal instruction|Projector + LLM, 可选 Vision Encoder|按指令完成 VQA, OCR, Grounding 等任务|
+|Preference Alignment|chosen / rejected 或可验证 rollout|VLM|减少幻觉, 改善安全与输出偏好|
+|Domain Adaptation|Medical, Document, GUI 等领域数据|按领域选择|适配专业分布和安全边界|
 
-### 1.1 Contrastive Learning
-
-代表模型是 [CLIP](https://arxiv.org/abs/2103.00020).
-
-输入是一批图文对:
-
-$$
-\{(I_i,T_i)\}_{i=1}^{B}
-$$
-
-目标是让匹配的 $(I_i,T_i)$ 相似度更高, 不匹配的 $(I_i,T_j)$ 相似度更低.
-
-这类训练常用于训练 [Vision Encoder](./Vision_Encoder.md), 使视觉特征天然具备语言语义.
-
-### 1.2 Sigmoid Contrastive Learning
-
-[SigLIP](https://arxiv.org/abs/2303.15343) 使用 sigmoid loss, 将每个 image-text pair 当作二分类问题.
-
-相比 CLIP 的 softmax 对比学习, SigLIP 对分布式大规模训练更友好.
-
-### 1.3 作用
-
-图文对齐预训练的价值:
-
-1. 提供强视觉语义表示.
-2. 提供可复用的 vision tower.
-3. 提升 zero-shot 和 retrieval 能力.
-4. 为后续 VLM 图文对齐降低难度.
-
-局限:
-
-1. 不能直接生成长回答.
-2. 对 OCR, document, medical image 等细节任务不一定足够.
-3. 需要后续 instruction tuning 才能成为对话式 VLM.
+训练流程通常从稳定对齐逐步过渡到能力扩展. 前期数据规模大但监督较弱, 后期数据规模较小但任务和质量要求更高.
 
 ---
 
-## 2. Caption / Generative Pretraining
+## 2. 视觉语言预训练
 
-Caption 预训练让模型根据图片生成描述.
+### 2.1 Contrastive Pretraining
 
-形式:
+[CLIP](https://arxiv.org/abs/2103.00020) 对一批图文对 $(I_i,T_i)$ 分别编码, 提高匹配 pair 的相似度并降低不匹配 pair 的相似度. [SigLIP](https://arxiv.org/abs/2303.15343) 将 pair 匹配改为 sigmoid 二分类目标. 这类训练得到的 [Vision Encoder](./Vision_Encoder.md) 天然带有语言语义, 便于后续接入 LLM, 也保留较好的 zero-shot 与 retrieval 能力.
 
-$$
-P(y \mid I)
-$$
+对比学习主要训练表示空间, 不直接训练长回答生成. 它也更关注全局图文关系, 对 OCR, 文档布局和医学细节未必充分. 因此强视觉塔只是 VLM 的起点, 不能替代后续多模态生成训练.
 
-其中 $I$ 是图像, $y$ 是 caption.
+### 2.2 Generative Pretraining
 
-训练目标和普通语言模型类似:
+Caption 或 interleaved image-text pretraining 直接训练模型根据图像预测文本:
 
 $$
-L = -\sum_{t=1}^{T} \log P(y_t \mid I,y_{1:t-1})
+L_{\mathrm{gen}} = -\sum_{t=1}^{T}\log P(y_t \mid I,y_{1:t-1})
 $$
 
-### 2.1 特点
+相比纯对比学习, 生成式目标更接近 VQA 和对话模型的使用方式, 能让 visual tokens 参与自回归生成. 但 Caption 通常只描述显著内容, 不要求遵循复杂指令, 也不覆盖 Grounding, 多轮对话和结构化输出. 如果 Caption 占比过高, 模型容易形成 "看到图片就描述" 的默认行为.
 
-1. **直接训练生成能力**.
-2. **适合 image captioning 和 VQA**.
-3. **比纯对比学习更接近对话式 VLM**.
-4. **可作为 instruction tuning 之前的生成式预训练**.
-
-### 2.2 局限
-
-Caption 数据通常描述图片显著内容, 不一定覆盖:
-
-1. 细粒度推理.
-2. OCR.
-3. 医学诊断.
-4. 多轮对话.
-5. 指令遵循.
-6. grounding 和坐标输出.
-
-因此后续还需要 multimodal instruction tuning.
+一些新模型使用 native multimodal pretraining, 在较早阶段把图像, 文本和交错序列一起训练. 这样视觉与语言融合更充分, 但训练成本, 数据清洗和稳定性要求都明显高于复用冻结视觉塔.
 
 ---
 
 ## 3. Projector Alignment
 
-在 LLaVA 类模型中, 常见第一阶段是 projector alignment.
+LLaVA 类模型通常先冻结 Vision Encoder 和 LLM, 只训练 [Projector](./Projector.md):
 
-训练设置:
+$$
+H_v = f_{\mathrm{proj}}(X_v)
+$$
 
-1. 冻结 [Vision Encoder](./Vision_Encoder.md).
-2. 冻结 LLM.
-3. 只训练 [Projector](./Projector.md).
+该阶段使用 image-caption pair 或简单 VQA, 让 $H_v$ 落到 LLM 能够解释的 hidden space. 如果跳过基础对齐, LLM 会直接看到分布陌生的视觉 embedding, 后续 SFT 容易收敛慢或破坏已有语言能力.
 
-目标是让视觉特征能进入 LLM embedding space.
-
-常用数据:
-
-1. image-caption pair.
-2. image-text pair.
-3. 简单 VQA pair.
-
----
-
-### 3.1 为什么先对齐 Projector
-
-如果一开始直接训练整个 VLM, LLM 看到的是完全陌生的 visual embeddings, 训练会不稳定.
-
-先训练 Projector 的作用是:
-
-1. 对齐 Vision Encoder hidden space 和 LLM hidden space.
-2. 降低后续 instruction tuning 难度.
-3. 避免过早破坏 LLM 语言能力.
-4. 降低训练成本.
-
----
-
-### 3.2 常见问题
-
-Projector Alignment 数据如果太简单, 模型可能只学会图像描述, 不会复杂问答.
-
-如果 alignment 数据质量差, 可能导致:
-
-1. visual tokens 语义不稳定.
-2. 后续 instruction tuning 收敛慢.
-3. 图像细节无法有效进入 LLM.
+Projector Alignment 的目标不是让模型掌握所有任务. 数据过于简单时, 模型只会建立 "视觉特征对应什么文本" 的粗粒度映射, 复杂推理仍然依赖 Instruction Tuning. 对齐数据如果图文弱相关或包含幻觉, 则会从接口层污染后续训练, 表现为模型忽略图像, visual tokens 语义不稳定或 instruction stage 学习效率低.
 
 ---
 
 ## 4. Multimodal Instruction Tuning
 
-Multimodal Instruction Tuning 是现代 VLM 的关键阶段.
-
-它类似 [SFT](../Finetune/Main.md), 但输入中包含图像:
+Multimodal Instruction Tuning 是 VLM 从图文生成模型变成视觉助手的关键阶段. 一条样本通常表示为 $(I,x,y)$, 其中 $I$ 是图像, $x$ 是用户指令, $y$ 是目标回答:
 
 ```text
 USER: <image>
@@ -167,268 +80,62 @@ What is abnormal in this X-ray?
 ASSISTANT: ...
 ```
 
-训练目标是最大化标准回答的 token 概率:
+训练目标与 [SFT](../Finetune/Main.md) 相同, 只是在条件中加入视觉输入:
 
 $$
-L_{\mathrm{SFT}} = -\sum_{t=1}^{T} \log P(y_t \mid I,x,y_{1:t-1})
+L_{\mathrm{SFT}} = -\sum_{t=1}^{T}\log P(y_t \mid I,x,y_{1:t-1})
 $$
 
-其中:
+Instruction data 需要覆盖通用 VQA, OCR / Document, Chart, Grounding, Multi-Image, Video 和 Medical 等任务. 不同任务不是同一种能力的不同测试集: OCR 数据训练模型读取小字, Grounding 数据建立区域与文本对应, Video QA 引入时间关系, Medical data 负责专业域知识和安全表达. 具体配比见 [Data_Process](./Data_Process.md).
 
-- $I$: 图像.
-- $x$: 用户指令.
-- $y$: 标准回答.
+常见训练配置是冻结 Vision Encoder, 全量训练 Projector, 并对 LLM 使用 [LoRA](../Finetune/PEFT.md) 或全参数微调. 当目标任务与视觉塔预训练分布差异较大, 例如医疗影像或高分辨率文档, 可以解冻 Vision Encoder 后部层. 全模块联合训练的上限更高, 但应对视觉塔和 LLM 使用较小 learning rate, 避免通用能力快速遗忘.
 
----
-
-### 4.1 数据类型
-
-常见数据类型:
-
-1. **General VQA**: 通用图片问答.
-2. **OCR QA**: 图片中文字理解.
-3. **Document QA**: 文档截图理解.
-4. **Chart QA**: 图表问答.
-5. **Grounding**: 区域定位和坐标输出.
-6. **Multi-Image QA**: 多图比较.
-7. **Video QA**: 视频帧理解.
-8. **Medical QA**: 医学影像和报告问答.
-
-不同数据对应不同能力. 如果 OCR 数据不足, 模型读字能力通常较弱. 如果 grounding 数据不足, 模型很难输出可靠位置.
-
----
-
-### 4.2 训练参数选择
-
-常见策略:
-
-1. 冻结 Vision Encoder.
-2. 训练 Projector.
-3. LLM 使用 [LoRA](../Finetune/PEFT.md) 或全参数微调.
-
-高性能 VLM 也可能训练全部模块:
-
-1. Vision Encoder.
-2. Projector.
-3. LLM.
-
-大模型训练中, 可能使用 [DeepSpeed](../Framework/DeepSpeed.md) 或 [Megatron](../Framework/Megatron.md) 做分布式训练.
-
----
-
-### 4.3 Instruction Tuning 的风险
-
-Multimodal Instruction Tuning 常见问题:
-
-1. 合成数据风格过强, 模型回答模式单一.
-2. QA 数据太短, 模型缺少解释能力.
-3. Caption 数据太多, 模型倾向于描述而不是回答.
-4. OCR / grounding 数据不足, 细节能力弱.
-5. 医疗等高风险领域缺少安全边界.
-
-因此数据配比非常重要, 详见 [Data_Process](./Data_Process.md).
+Instruction Tuning 的主要问题来自数据分布. 合成 QA 占比过高会继承 teacher 的语气和错误; Caption 太多会削弱指令遵循; 短答案太多会让模型缺乏解释能力; 某类任务不足则会形成明确短板. 训练 loss 下降并不能证明模型在看图, 还需要用视觉依赖样本和 [Evaluation](./Evaluation.md) 中的分项 benchmark 验证.
 
 ---
 
 ## 5. Preference Alignment
 
-VLM 也可以做偏好对齐.
-
-### 5.1 Multimodal DPO
-
-和 [DPO](../Align/DPO.md) 类似, 数据变成:
+SFT 让模型模仿标准回答, 但不能直接优化两个都合理回答之间的偏好. 多模态偏好数据通常写为:
 
 $$
 (I,x,y_w,y_l)
 $$
 
-其中:
+其中 $y_w$ 比 $y_l$ 更符合视觉证据, 幻觉更少, 格式更稳定或医疗表达更安全. 可以使用 [DPO](../Align/DPO.md) 直接提高 chosen answer 的相对概率. 多模态 DPO 的关键是 preference 必须真正依赖图像; 如果 chosen 只是语言更流畅, 模型可能改善文风却没有减少视觉幻觉.
 
-- $I$: 图像.
-- $x$: 文本 prompt.
-- $y_w$: 更好回答.
-- $y_l$: 更差回答.
+[RLHF](../Align/RLHF.md) 可以使用 reward model 评价开放式回答. 对有明确验证规则的任务, [GRPO](../Align/GRPO.md) 或 [DAPO](../Align/DAPO.md) 更容易构造可靠 reward, 例如 OCR exact match, Chart QA 数值答案, Grounding box IoU, Medical multiple choice 和 JSON schema. 对同一输入生成多个回答并用 verifier 打分, 可以直接优化任务结果. 大规模 rollout 可结合 [vLLM](../Framework/vllm.md), [SGLang](../Framework/SGLang.md) 与 [verl](../Framework/Verl.md).
 
-目标是让模型更偏好 $y_w$.
-
-常见偏好维度:
-
-1. 是否符合图像证据.
-2. 是否减少幻觉.
-3. 是否遵循输出格式.
-4. 是否表达不确定性.
-5. 医疗回答是否安全.
+偏好优化适合改善幻觉, 拒答, 不确定性和格式, 但不能弥补 Vision Encoder 根本看不清图像的问题. 如果视觉信息在前端已经丢失, 继续增加语言侧 reward 可能只会让模型更自信地猜测.
 
 ---
 
-### 5.2 Multimodal RLHF
+## 6. 专项能力训练
 
-和 [RLHF](../Align/RLHF.md) 类似, VLM 可以通过 reward model 或规则 verifier 优化.
+### 6.1 OCR, Document 和 Grounding
 
-例如:
+OCR / Document 训练通常使用高分辨率截图, 表格, 图表, PDF 页面和多页文档. 除文字内容外, 数据需要保留 layout, 行列关系和字段位置. 结构化抽取任务还应约束 schema, 缺失字段和数值格式. 这类训练与 Dynamic Resolution, Patch Merger 等架构设计共同决定最终效果.
 
-1. OCR 是否正确.
-2. 医学诊断是否安全.
-3. 坐标输出是否匹配目标框.
-4. JSON 格式是否正确.
-5. 图表计算是否正确.
+Grounding 数据把文本与 box, point 或 mask 对齐. 它既能训练目标定位, 也能要求模型为回答提供视觉证据. 医疗病灶定位与 GUI click 都依赖同一基础能力, 但坐标系统和评价标准不同. 图像预处理发生 resize 或 crop 时, 训练标签必须同步变换, 否则模型会学到错误位置.
 
----
+### 6.2 Video
 
-### 5.3 Multimodal GRPO / DAPO
+Video VLM 将视频表示为帧序列 $V = \{I_1,I_2,\dots,I_T\}$. Video Caption 和 QA 提供内容监督, action recognition 与 temporal reasoning 强调状态变化和先后关系. 训练时需要记录帧顺序, 加入时间位置, 并用帧采样或 token compression 控制上下文. 如果数据只包含单帧可回答的问题, 模型即使在 Video QA 上训练也可能没有学到真正的时间理解.
 
-对同一张图片和 prompt 生成多个回答, 然后使用 reward 或 verifier 打分:
+### 6.3 Medical Domain Adaptation
 
-$$
-\{y_1,y_2,\dots,y_G\}
-$$
-
-再使用 [GRPO](../Align/GRPO.md) 或 [DAPO](../Align/DAPO.md) 做组内相对优化.
-
-这种方式适合可验证任务:
-
-1. OCR exact match.
-2. Chart QA.
-3. Medical multiple choice.
-4. Grounding box IoU.
-5. 数学图表推理.
-
-大规模 rollout 可以结合 [vLLM](../Framework/vllm.md), [SGLang](../Framework/SGLang.md), [verl](../Framework/Verl.md).
+医疗 VLM 通常从通用 VLM 初始化, 再使用 image-report pair 建立医学图文对应, 使用医疗指令数据训练问答与报告生成, 最后加入医生偏好, grounding 和安全数据. 医疗训练不仅要提升术语和病灶识别, 还要教模型区分影像发现与最终诊断, 表达不确定性并建议专业复核. 详见 [Medical_VLM](./Medical_VLM.md).
 
 ---
 
-## 6. OCR / Document 专项训练
+## 7. 工程和稳定性
 
-现代强 VLM 很重视 OCR 和文档能力.
+多模态训练同时包含图像预处理, Vision Encoder, Projector 和 LLM, 显存通常受 activation 与长 visual sequence 影响. 大规模训练可使用 [DeepSpeed](../Framework/DeepSpeed.md) 或 [Megatron](../Framework/Megatron.md), 并结合 gradient checkpointing, mixed precision 和 [LoRA](../Finetune/PEFT.md). Dynamic Resolution 会使 batch 内序列长度变化, 需要按 visual token 数做 batching 或设置每批 token budget, 否则 padding 浪费和 OOM 会很不稳定.
 
-专项训练通常包括:
-
-1. TextVQA 类数据.
-2. 文档截图问答.
-3. 表格理解.
-4. 图表问答.
-5. 屏幕截图理解.
-6. 多页文档理解.
-
-训练重点:
-
-1. 高分辨率输入.
-2. 保留细粒度 visual tokens.
-3. 构造文字位置和内容相关问题.
-4. 加入结构化输出.
-5. 保留 layout 信息.
-
-这类能力对医疗场景也很重要, 因为病历, 检查单, 报告都是文档型数据.
+训练监控不能只记录 total loss. 更有价值的是分别观察 Caption, VQA, OCR, Grounding 和纯文本数据的 loss 或验证指标, 同时检查模型是否保留 text-only 能力. 当模型开始忽略图像, 常见原因包括语言数据过强, 视觉输入与答案弱相关, Projector 学习不足或 image placeholder / label mask 实现错误.
 
 ---
 
-## 7. Grounding 训练
+## 8. 总结
 
-Grounding 是让 VLM 能把语言和图像区域对应起来.
-
-常见任务:
-
-1. 根据文字找区域.
-2. 根据区域回答问题.
-3. 输出 bounding box.
-4. 输出 point 或 mask.
-5. 解释答案来自哪个区域.
-
-训练数据通常包含:
-
-$$
-(\text{image}, \text{text}, \text{box})
-$$
-
-或:
-
-$$
-(\text{image}, \text{region}, \text{answer})
-$$
-
-### 7.1 价值
-
-Grounding 可以缓解 VLM 幻觉, 因为模型不仅要回答, 还要说明视觉证据在哪里.
-
-在医疗场景中, grounding 很重要:
-
-1. 指出病灶区域.
-2. 标出异常影像位置.
-3. 辅助医生检查模型依据.
-
----
-
-## 8. Video 训练
-
-Video VLM 训练通常将视频转为帧序列:
-
-$$
-V = \{I_1,I_2,\dots,I_T\}
-$$
-
-训练任务包括:
-
-1. Video caption.
-2. Video QA.
-3. Action recognition.
-4. Temporal reasoning.
-5. 多帧事件描述.
-
-关键问题:
-
-1. 帧数多, visual tokens 多.
-2. 需要时间位置编码.
-3. 需要处理长视频压缩.
-4. 需要构造时间顺序相关问题.
-
-详见 [Inference](./Inference.md).
-
----
-
-## 9. 医疗领域继续训练
-
-医疗 VLM 通常需要领域继续训练.
-
-原因:
-
-1. 通用图片和医学影像分布差异大.
-2. 医学术语密集.
-3. 专业标注稀缺.
-4. 安全要求高.
-5. 需要表达不确定性和建议复核.
-
-常见训练数据:
-
-1. X-ray image-report pair.
-2. CT / MRI 影像描述.
-3. 病理图像 patch.
-4. 医学 VQA.
-5. 医学教材和指南.
-6. 医疗文档 OCR.
-
-详见 [Medical_VLM](./Medical_VLM.md).
-
----
-
-## 10. 训练阶段对比
-
-|阶段|训练对象|主要数据|目标|
-|---|---|---|---|
-|Image-Text Pretraining|Vision Encoder|image-text pair|学习视觉和文本语义对齐|
-|Caption Pretraining|VLM|image-caption|学习根据图像生成文本|
-|Projector Alignment|Projector|image-caption / VQA|把视觉特征映射到 LLM 空间|
-|Instruction Tuning|Projector + LLM|多模态指令数据|学会根据图片回答问题|
-|Preference Alignment|VLM|chosen / rejected|优化回答偏好和安全性|
-|Domain Adaptation|VLM|医疗等领域数据|适配垂直场景|
-
----
-
-## 11. 总结
-
-VLM 训练不是单一步骤.
-
-1. 图文对齐预训练让视觉特征具备语言语义.
-2. Projector Alignment 让视觉特征能进入 LLM 空间.
-3. Multimodal Instruction Tuning 让模型学会按指令看图回答.
-4. Preference Alignment 用于降低幻觉, 优化格式和安全性.
-5. OCR, grounding, video, medical 等能力需要专项数据和专项训练.
+VLM 训练的主线是 **先建立视觉语言表示, 再对齐接口, 然后学习任务和偏好**. Projector Alignment 负责让视觉特征可读, Instruction Tuning 决定能力覆盖, Preference Alignment 改善可靠性, 专项训练补充 OCR, Grounding, Video 和 Medical 等能力. 各阶段必须与数据来源和模块更新范围对应, 否则把所有数据混合训练只会让问题更难定位.

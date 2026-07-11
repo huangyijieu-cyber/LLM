@@ -1,8 +1,8 @@
 # VLM
 
-VLM 全称是 **Vision-Language Model**, 即视觉语言模型. 它的目标是让模型同时理解视觉输入和文本输入, 并用自然语言或结构化格式输出结果.
+VLM 全称是 **Vision-Language Model**, 即视觉语言模型. 它把图像, 视频或文档转换成语言模型能够处理的表示, 使模型可以围绕视觉内容进行问答, 推理和生成.
 
-VLM 可以看作是在 [LLM](../basic/Transformer%20架构.md) 的基础上接入视觉信息:
+现代 VLM 通常采用下面的结构:
 
 $$
 \text{Image / Video / Document}
@@ -16,276 +16,111 @@ $$
 \text{Text / Box / Structure}
 $$
 
-其核心思想是:
-
-**先把图像编码成视觉特征, 再把视觉特征映射到语言模型能理解的 embedding space, 最后让 LLM 像处理文本 token 一样处理 visual tokens.**
+VLM 的重点不是让 LLM 直接读取像素, 而是把视觉信息转换为一组 **visual tokens**, 再让 LLM 通过 [Attention](../basic/Attention.md) 联合处理 visual tokens 和 text tokens.
 
 ---
 
-## 1. VLM 主要解决什么问题
+## 1. 基本结构
 
-VLM 的典型任务包括:
+[Vision Encoder](./Vision_Encoder.md) 负责从像素中提取语义和空间特征. [Projector](./Projector.md) 负责将视觉特征映射到 LLM hidden space, 必要时还会压缩 token. LLM 则基于视觉上下文理解问题并生成回答. 三个模块的能力不是相互替代的: Vision Encoder 没有保留的小字和病灶细节, Projector 与 LLM 通常无法恢复; Projector 压缩过强时, 强视觉塔也会丢失局部信息; LLM 能力不足时, 模型即使看清图像也无法完成复杂推理.
 
-1. **Image Captioning**: 根据图片生成描述.
-2. **VQA (Visual Question Answering)**: 根据图片回答问题.
-3. **OCR / Document QA**: 理解图片中的文字, 表格和文档布局.
-4. **Chart / Table Understanding**: 理解图表, 表格和坐标信息.
-5. **Visual Grounding**: 根据文本定位图像区域, 或根据区域生成描述.
-6. **Multi-Image Understanding**: 多图对比, 多页文档, 前后检查对比.
-7. **Video Understanding**: 理解多帧视频内容和时间变化.
-8. **Medical VLM**: 理解 X-ray, CT, MRI, 病理图像和医学报告.
-
-其中医疗场景尤其关注:
-
-- 医学影像问答.
-- 医学报告生成.
-- 病理图像理解.
-- 多模态病历理解.
-- 病灶定位.
-- 医疗安全和幻觉控制.
-
-详见 [Medical_VLM](./Medical_VLM.md).
-
----
-
-## 2. VLM 的基本组成
-
-### 2.1 Vision Encoder
-
-[Vision Encoder](./Vision_Encoder.md) 负责把图像转成视觉特征.
-
-常见选择:
-
-1. ViT.
-2. CLIP Vision Encoder.
-3. SigLIP.
-4. DINOv2.
-5. EVA-CLIP.
-6. InternViT / strong vision foundation model.
-
-Vision Encoder 决定模型能否看清图像细节. 如果视觉塔已经丢失小字, 病灶或局部目标, 后续 LLM 很难通过语言推理恢复这些信息.
-
----
-
-### 2.2 Projector / Connector
-
-[Projector](./Projector.md) 负责把视觉特征映射到 LLM hidden size.
-
-常见选择:
-
-1. Linear Projector.
-2. MLP Projector.
-3. Q-Former.
-4. Perceiver Resampler.
-5. Patch Merger.
-6. Cross-Attention Connector.
-
-Projector 不只是做维度对齐, 还会影响:
-
-1. visual token 数量.
-2. 视觉信息压缩程度.
-3. 训练稳定性.
-4. 高分辨率输入成本.
-
----
-
-### 2.3 LLM
-
-LLM 负责理解融合后的 text tokens 和 visual tokens, 并生成回答.
-
-常见基座:
-
-1. LLaMA / Vicuna.
-2. Qwen.
-3. InternLM.
-4. Mistral.
-5. DeepSeek.
-
-LLM 的基础结构见 [Transformer](../basic/Transformer%20架构.md), 注意力机制见 [Attention](../basic/Attention.md).
-
----
-
-## 3. 主流 VLM 技术路线
-
-主流架构路线详见 [Architecture](./Architecture.md). 可以先按下面几类理解.
-
-### 3.1 CLIP / SigLIP 路线
-
-CLIP / SigLIP 主要解决图文表征对齐:
+VLM 架构的核心矛盾是 **视觉信息量和计算成本之间的权衡**. 对 patch size 为 $P \times P$ 的图像, visual token 数量近似为:
 
 $$
-\text{Image Encoder}(I) \rightarrow z_I
+N_v \approx \frac{H \times W}{P^2}
 $$
 
-$$
-\text{Text Encoder}(T) \rightarrow z_T
-$$
-
-目标是让匹配图文对相似度更高, 不匹配图文对相似度更低.
-
-这类模型本身通常不负责生成长回答, 但常作为 VLM 的视觉塔.
+提高分辨率可以改善 OCR, 文档, 图表和小目标识别, 但也会增加 LLM prefill, [KV Cache](../Inference/KV_Cache.md) 和 serving 调度成本. 因此主流架构都在解决两个问题: 如何保留足够的视觉细节, 以及如何控制进入 LLM 的 visual token 数量.
 
 ---
 
-### 3.2 BLIP / BLIP-2 路线
+## 2. 能力范围
 
-BLIP 系列强调图文生成预训练.
+VLM 的能力可以按视觉证据的形式划分. 通用 VQA 和 Caption 主要依赖场景语义; OCR, Document QA 和 Chart QA 需要读取高分辨率文字并理解二维布局; Grounding 要求把文本与具体区域对应; Visual Reasoning 还要在感知结果上进行数学, 空间或常识推理. 多图和视频任务进一步引入跨图关联与时间顺序, 医疗任务则增加专业知识, 不确定性和安全边界.
 
-[BLIP-2](https://arxiv.org/abs/2301.12597) 的核心是 Q-Former:
+|能力|典型任务|主要依赖|
+|---|---|---|
+|通用视觉理解|Caption, VQA, counting|图文对齐和场景语义|
+|文字与文档|OCR, DocVQA, ChartQA|高分辨率, layout, 结构化输出|
+|区域定位|Grounding, GUI click, lesion localization|局部特征, 空间位置, 坐标格式|
+|视觉推理|MathVista, science QA, multi-image comparison|视觉证据和 LLM 推理能力|
+|多图与视频|多页文档, 视频问答, temporal reasoning|token 压缩, 跨图关联, 时间位置|
+|医疗多模态|Medical VQA, report generation, lesion grounding|专业域适配, 细粒度感知, 安全性|
+
+医疗场景的任务, 数据和风险单独见 [Medical_VLM](./Medical_VLM.md).
+
+---
+
+## 3. 主流技术路线
+
+### 3.1 图文表征路线
+
+[CLIP](https://arxiv.org/abs/2103.00020) 和 [SigLIP](https://arxiv.org/abs/2303.15343) 使用大规模图文对训练 image encoder 和 text encoder, 使匹配图文的表示更接近. 它们本身通常不负责长文本生成, 但提供了适合接入 LLM 的视觉语义特征, 因而常被用作 VLM 的 Vision Encoder.
+
+### 3.2 冻结模型连接路线
+
+[BLIP-2](https://arxiv.org/abs/2301.12597) 使用 Q-Former 从视觉特征中提取固定数量的 query features, 以较低训练成本连接冻结 Vision Encoder 和冻结 LLM. [Flamingo](https://arxiv.org/abs/2204.14198) 使用 Perceiver Resampler 压缩视觉特征, 再通过 gated cross-attention 在 LLM 中间层注入视觉信息. 两者都重视 token 压缩和参数效率, 但结构比简单 Projector 更复杂.
+
+### 3.3 Decoder-Only VLM 路线
+
+当前开源 VLM 的主流做法是将 visual tokens 直接放入 decoder-only LLM 的上下文. 这条路线保留了 LLM 原有的生成接口, 便于复用 [SFT](../Finetune/Main.md), [DPO](../Align/DPO.md) 和 RL 等后训练方法.
+
+|路线|核心设计|主要特点|
+|---|---|---|
+|LLaVA|CLIP Vision Encoder + MLP Projector + LLM|结构简单, Visual Instruction Tuning 范式清晰|
+|LLaVA-NeXT / OneVision|AnyRes, global view + local tiles|加强高分辨率, 多图和视频能力|
+|Qwen-VL|Dynamic Resolution, Patch Merger, M-RoPE|OCR, document, grounding, video 和 GUI 能力完整|
+|InternVL|强 Vision Encoder, Dynamic High Resolution, V2PE|强调视觉底座, 高分辨率处理和系统训练配方|
+
+各路线的结构与关键技巧见 [Architecture](./Architecture.md).
+
+---
+
+## 4. 训练和数据
+
+VLM 通常不是一次训练完成, 而是逐步建立图文对齐, 指令遵循和领域能力:
 
 $$
-\text{Frozen Vision Encoder}
+\text{Image-Text Pretraining}
 \rightarrow
-\text{Q-Former}
+\text{Projector Alignment}
 \rightarrow
-\text{Frozen LLM}
+\text{Multimodal Instruction Tuning}
+\rightarrow
+\text{Preference Alignment}
+\rightarrow
+\text{Domain Adaptation}
 $$
 
-它使用少量 query tokens 从视觉特征中提取语言相关信息, 再对接冻结 LLM.
+图文预训练为视觉特征建立语言语义, Projector Alignment 让视觉表示能够进入 LLM, Multimodal Instruction Tuning 让模型学会根据图像执行指令. Preference Alignment 用于减少幻觉, 改善格式和安全性, 医疗, 文档, 视频等能力则依赖专门的数据与继续训练. 具体流程见 [Training](./Training.md).
+
+数据和能力需要一一对应. Image-text pair 适合学习基础对齐, Caption 数据训练描述能力, Instruction data 训练问答和指令遵循, OCR / Grounding / Video / Medical 数据负责补足专项能力. 数据构造, 清洗和配比见 [Data_Process](./Data_Process.md).
 
 ---
 
-### 3.3 Flamingo 路线
+## 5. 推理和评测
 
-[Flamingo](https://arxiv.org/abs/2204.14198) 使用 Perceiver Resampler 和 gated cross-attention 把视觉信息注入语言模型.
+VLM 推理在普通 LLM 之前增加了图像预处理, Vision Encoder forward 和 Projector forward. 真正影响吞吐的关键通常不是 Projector 参数量, 而是 visual tokens 增加了输入长度, 从而扩大 prefill 和 KV Cache. 多图, 高分辨率和视频场景都需要显式管理 visual token budget, 详见 [Inference](./Inference.md).
 
-它的重要特点:
-
-1. 支持 interleaved image-text 输入.
-2. 适合多图上下文.
-3. 强调 multimodal few-shot learning.
-4. 需要修改 LLM 中间层, 工程复杂度较高.
+VLM 评测也不能只看一个综合分数. 模型回答错误时, 需要区分是视觉感知失败, OCR 失败, 推理失败还是视觉幻觉. 因此评测通常组合通用 VQA, OCR / Document, Reasoning, Grounding, Hallucination, Video 和 Medical 等维度, 详见 [Evaluation](./Evaluation.md).
 
 ---
 
-### 3.4 LLaVA 路线
+## 6. 笔记关系
 
-[LLaVA](https://arxiv.org/abs/2304.08485) 是经典开源 VLM 路线.
-
-结构:
-
-$$
-\text{CLIP Vision Encoder}
-\rightarrow
-\text{MLP Projector}
-\rightarrow
-\text{LLM}
-$$
-
-LLaVA 的关键不是复杂架构, 而是:
-
-1. 使用简单 Projector 对齐 visual tokens.
-2. 使用多模态指令数据进行 Visual Instruction Tuning.
-3. 形成容易复现的开源 VLM 基础范式.
+|笔记|核心问题|
+|---|---|
+|[Architecture](./Architecture.md)|主流 VLM 如何组织 Vision Encoder, Connector 和 LLM|
+|[Vision_Encoder](./Vision_Encoder.md)|图像如何转成视觉特征|
+|[Projector](./Projector.md)|视觉特征如何对齐和压缩后进入 LLM|
+|[Training](./Training.md)|VLM 各训练阶段分别解决什么问题|
+|[Data_Process](./Data_Process.md)|不同能力需要什么数据, 如何清洗和配比|
+|[Evaluation](./Evaluation.md)|如何定位模型能力和失败来源|
+|[Inference](./Inference.md)|visual tokens 如何影响延迟, 显存和吞吐|
+|[Medical_VLM](./Medical_VLM.md)|医疗 VLM 的任务, 训练, 风险和评测|
 
 ---
 
-### 3.5 Qwen-VL / InternVL 路线
+## 7. 总结
 
-Qwen-VL 和 InternVL 代表更强的开源 VLM 方向.
-
-共同趋势:
-
-1. 更高分辨率输入.
-2. 更强 Vision Encoder.
-3. 更好的 visual token 压缩.
-4. 更强 OCR, document, chart 能力.
-5. 支持 grounding 和坐标输出.
-6. 支持多图和视频.
-7. 更系统的数据配方和训练流程.
-
-区别:
-
-- Qwen-VL 更偏真实世界多模态助手, 强调 OCR, document, grounding, video, GUI.
-- InternVL 更偏强视觉塔和系统训练配方, 强调 dynamic high resolution, V2PE, 原生多模态预训练和偏好优化.
-
----
-
-## 4. VLM 训练流程
-
-VLM 训练通常分为几个阶段:
-
-1. **Image-Text Pretraining**: 学习图像和文本的基础对齐.
-2. **Caption / Generative Pretraining**: 学习根据图像生成文本.
-3. **Projector Alignment**: 让视觉特征进入 LLM embedding space.
-4. **Multimodal Instruction Tuning**: 训练模型根据图片回答问题.
-5. **Preference Alignment**: 使用 [DPO](../Align/DPO.md), [RLHF](../Align/RLHF.md), [GRPO](../Align/GRPO.md) 等方法优化回答偏好和安全性.
-6. **Domain Adaptation**: 在医疗, 文档, 图表等垂直场景中继续训练.
-
-详见 [Training](./Training.md).
-
----
-
-## 5. VLM 数据和评测
-
-VLM 的能力高度依赖数据.
-
-重要数据类型:
-
-1. Image-text pair.
-2. Caption 数据.
-3. Multimodal instruction data.
-4. OCR / Document 数据.
-5. Grounding 数据.
-6. Video 数据.
-7. Medical image-report pair.
-
-详见 [Data_Process](./Data_Process.md).
-
-VLM 评测需要拆成多个维度:
-
-1. 通用视觉理解.
-2. OCR.
-3. 文档和图表.
-4. 视觉推理.
-5. grounding.
-6. hallucination.
-7. 医疗安全性.
-
-详见 [Evaluation](./Evaluation.md).
-
----
-
-## 6. VLM 推理特点
-
-VLM 推理相比纯 LLM 多了视觉输入处理:
-
-1. 图片预处理.
-2. Vision Encoder forward.
-3. Projector forward.
-4. visual tokens 插入上下文.
-5. LLM prefill.
-6. LLM decode.
-
-Visual tokens 会占用上下文长度, 从而影响 [KV Cache](../Inference/KV_Cache.md), batch size 和推理速度.
-
-详见 [Inference](./Inference.md).
-
----
-
-## 7. 学习顺序
-
-建议按以下顺序学习:
-
-1. [Main](./Main.md): 了解 VLM 整体结构.
-2. [Architecture](./Architecture.md): 理解主流模型路线.
-3. [Vision_Encoder](./Vision_Encoder.md): 理解视觉塔.
-4. [Projector](./Projector.md): 理解视觉特征如何进入 LLM.
-5. [Training](./Training.md): 理解训练流程.
-6. [Data_Process](./Data_Process.md): 理解数据构造和清洗.
-7. [Evaluation](./Evaluation.md): 理解评测体系.
-8. [Inference](./Inference.md): 理解部署和推理成本.
-9. [Medical_VLM](./Medical_VLM.md): 理解医疗场景.
-
----
-
-## 8. 总结
-
-VLM 的核心不是让 LLM 直接处理像素, 而是:
-
-1. 用 Vision Encoder 提取视觉特征.
-2. 用 Projector 将视觉特征映射成 visual tokens.
-3. 用 LLM 结合 visual tokens 和 text tokens 做生成.
-4. 用多模态数据训练模型学会图文联合推理.
-
-当前强 VLM 的关键在于高分辨率细节保留, visual token 成本控制, 空间/时间位置建模, 数据配比和安全评测.
+VLM 的基本链路是 **视觉编码 -> 特征对齐与压缩 -> 语言建模**. 当前主流模型之间的差异, 主要来自分辨率策略, visual token 压缩方式, 空间与时间位置编码, 训练数据配方以及偏好对齐. 理解 VLM 时需要始终把效果和成本放在一起: 视觉细节决定模型能看到什么, visual token budget 决定这些信息能否以可接受的代价进入 LLM.
