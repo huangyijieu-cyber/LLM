@@ -23,13 +23,15 @@ OPD 的核心思想是:
 和普通离线蒸馏相比, OPD 的区别在于:
 
 $$
-\text{Offline KD}: y \sim p_T(y|x) \quad \text{or} \quad y \sim D
+\mathrm{Offline\ KD}: \quad y \sim p_T(y \mid x)
+\quad \mathrm{or} \quad
+y \sim D
 $$
 
 而:
 
 $$
-\text{OPD}: y \sim p_\theta(y|x)
+\mathrm{OPD}: \quad y \sim p_\theta(y \mid x)
 $$
 
 也就是说, OPD 的训练样本来自 **Student 当前策略自己的生成分布**, 而不是固定的 Teacher 数据集.
@@ -41,15 +43,22 @@ $$
 ### 2.1 自回归生成建模
 
 对于一个 Prompt $x$, LLM 生成回答 $y = \{y_1, y_2, \dots, y_T\}$ 时, 可以写成逐 token 的条件概率乘积:
-$$p_\theta(y|x)=\prod_{t=1}^{T}p_\theta(y_t|x,y_{<t})$$
+
+$$
+p_\theta(y \mid x)
+=
+\prod_{t=1}^{T}
+p_\theta(y_t \mid x,y_{1:t-1})
+$$
+
 其中:
 - $p_\theta$: Student Model 的策略分布.
 - $p_T$: Teacher Model 的策略分布.
-- $y_{<t}$: 当前 token 之前已经生成的前缀.
-- $p_\theta(\cdot|x,y_{<t})$: Student 在当前前缀下对下一个 token 的概率分布.
-- $p_T(\cdot|x,y_{<t})$: Teacher 在同一个前缀下对下一个 token 的概率分布.
+- $y_{1:t-1}$: 当前 token 之前已经生成的前缀.
+- $p_\theta(\cdot \mid x,y_{1:t-1})$: Student 在当前前缀下对下一个 token 的概率分布.
+- $p_T(\cdot \mid x,y_{1:t-1})$: Teacher 在同一个前缀下对下一个 token 的概率分布.
 
-OPD 的关键点是: 这里的 $y_{<t}$ 不是 Teacher 写出来的标准前缀, 而是 Student 自己生成出来的前缀.
+OPD 的关键点是: 这里的 $y_{1:t-1}$ 不是 Teacher 写出来的标准前缀, 而是 Student 自己生成出来的前缀.
 
 ---
 
@@ -58,21 +67,21 @@ OPD 的关键点是: 这里的 $y_{<t}$ 不是 Teacher 写出来的标准前缀,
 对于训练集中的 Prompt $x$, OPD 先让当前 Student Model 生成回答:
 
 $$
-y \sim p_{\theta_{old}}(y|x)
+y \sim p_{\theta_{\mathrm{old}}}(y \mid x)
 $$
 
-这里通常使用 $p_{\theta_{old}}$ 表示生成 rollout 时的 Student 快照. 在当前更新阶段, 这批生成数据被视作固定样本, **不对采样过程本身反向传播**.
+这里通常使用 $p_{\theta_{\mathrm{old}}}$ 表示生成 rollout 时的 Student 快照. 在当前更新阶段, 这批生成数据被视作固定样本, **不对采样过程本身反向传播**.
 
-得到回答 $y$ 后, 对每一个前缀 $(x,y_{<t})$, Teacher 给出下一个 token 的监督分布:
+得到回答 $y$ 后, 对每一个前缀 $(x,y_{1:t-1})$, Teacher 给出下一个 token 的监督分布:
 
 $$
-p_T(\cdot|x,y_{<t})
+p_T(\cdot \mid x,y_{1:t-1})
 $$
 
 Student 则给出:
 
 $$
-p_\theta(\cdot|x,y_{<t})
+p_\theta(\cdot \mid x,y_{1:t-1})
 $$
 
 OPD 的训练目标就是让 Student 在这些自己生成的状态上尽量接近 Teacher.
@@ -84,39 +93,39 @@ OPD 的训练目标就是让 Student 在这些自己生成的状态上尽量接�
 对一条 Student 生成的回答 $y$, 可以定义 Teacher 和 Student 在每个 token 位置上的分布差异:
 
 $$
-D(p_T,p_\theta)(y|x)
+D(p_T,p_\theta)(y \mid x)
 =
-\frac{1}{|y|}
-\sum_{t=1}^{|y|}
+\frac{1}{\lvert y \rvert}
+\sum_{t=1}^{\lvert y \rvert}
 D
 \left(
-p_T(\cdot|x,y_{<t})
-||
-p_\theta(\cdot|x,y_{<t})
+p_T(\cdot \mid x,y_{1:t-1})
+\Vert
+p_\theta(\cdot \mid x,y_{1:t-1})
 \right)
 $$
 
 其中:
 
-- $D(\cdot||\cdot)$: 某种分布距离, 常见选择包括 Forward KL, Reverse KL, JS Divergence 等.
-- $|y|$: 当前回答的 token 数.
+- $D(\cdot \Vert \cdot)$: 某种分布距离, 常见选择包括 Forward KL, Reverse KL, JS Divergence 等.
+- $\lvert y \rvert$: 当前回答的 token 数.
 - **物理意义**: Teacher 在 Student 自己写出的每一个前缀上告诉它: "在这个位置, 更合理的下一个 token 分布应该是什么".
 
 OPD 的整体目标函数可以写成:
 
 $$
-L_{\text{OPD}}(\theta)
+L_{\mathrm{OPD}}(\theta)
 =
 \mathbb{E}_{x \sim D}
 \left[
-\mathbb{E}_{y \sim p_{\theta_{old}}(\cdot|x)}
+\mathbb{E}_{y \sim p_{\theta_{\mathrm{old}}}(\cdot \mid x)}
 \left[
-\sum_{t=1}^{|y|}
+\sum_{t=1}^{\lvert y \rvert}
 D_f
 \left(
-p_T(\cdot|x,y_{<t})
-||
-p_\theta(\cdot|x,y_{<t})
+p_T(\cdot \mid x,y_{1:t-1})
+\Vert
+p_\theta(\cdot \mid x,y_{1:t-1})
 \right)
 \right]
 \right]
@@ -133,13 +142,14 @@ $$
 Forward KL 的形式是:
 
 $$
-D_{KL}(p_T||p_\theta)
+D_{\mathrm{KL}}(p_T \Vert p_\theta)
 =
 \sum_{v \in V}
-p_T(v|x,y_{<t})
+p_T(v \mid x,y_{1:t-1})
 \log
-\frac{p_T(v|x,y_{<t})}
-{p_\theta(v|x,y_{<t})}
+\frac
+{p_T(v \mid x,y_{1:t-1})}
+{p_\theta(v \mid x,y_{1:t-1})}
 $$
 
 其中 $V$ 是词表.
@@ -156,13 +166,14 @@ Forward KL 的特点是 **mode-covering**, 也就是 Student 会尽量覆盖 Tea
 Reverse KL 的形式是:
 
 $$
-D_{KL}(p_\theta||p_T)
+D_{\mathrm{KL}}(p_\theta \Vert p_T)
 =
 \sum_{v \in V}
-p_\theta(v|x,y_{<t})
+p_\theta(v \mid x,y_{1:t-1})
 \log
-\frac{p_\theta(v|x,y_{<t})}
-{p_T(v|x,y_{<t})}
+\frac
+{p_\theta(v \mid x,y_{1:t-1})}
+{p_T(v \mid x,y_{1:t-1})}
 $$
 
 Reverse KL 的特点是 **mode-seeking**, 也就是 Student 更倾向于集中到 Teacher 概率最高的模式上.
@@ -181,15 +192,15 @@ Reverse KL 的特点是 **mode-seeking**, 也就是 Student 更倾向于集中�
 $$
 y \sim
 \begin{cases}
-p_{\theta_{old}}(y|x), & \text{with probability } \lambda \\
-D_{\text{offline}}, & \text{with probability } 1-\lambda
+p_{\theta_{\mathrm{old}}}(y \mid x), & \mathrm{with\ probability}\ \lambda \\
+D_{\mathrm{offline}}, & \mathrm{with\ probability}\ (1-\lambda)
 \end{cases}
 $$
 
 其中:
 
 - $\lambda$: Student on-policy 数据比例.
-- $D_{\text{offline}}$: 固定离线数据, 可以是人工答案, Teacher 生成答案, 或历史高质量轨迹.
+- $D_{\mathrm{offline}}$: 固定离线数据, 可以是人工答案, Teacher 生成答案, 或历史高质量轨迹.
 
 当:
 
@@ -218,27 +229,27 @@ OPD 也可以和 GRPO, PPO, DAPO 这类 RL 算法结合. RL 提供 outcome-level
 一个简化的混合目标可以写成:
 
 $$
-L_{\text{total}}(\theta)
+L_{\mathrm{total}}(\theta)
 =
-L_{\text{RL}}(\theta)
+L_{\mathrm{RL}}(\theta)
 +
-\alpha L_{\text{OPD}}(\theta)
+\alpha L_{\mathrm{OPD}}(\theta)
 $$
 
 其中:
 
-- $L_{\text{RL}}$: 来自 PPO / GRPO / DAPO 的强化学习目标.
-- $L_{\text{OPD}}$: Teacher 对 Student 自生成轨迹的蒸馏损失.
+- $L_{\mathrm{RL}}$: 来自 PPO / GRPO / DAPO 的强化学习目标.
+- $L_{\mathrm{OPD}}$: Teacher 对 Student 自生成轨迹的蒸馏损失.
 - $\alpha$: 控制蒸馏信号强度的超参数.
 
 如果使用最大化形式, 也可以理解为:
 
 $$
-J_{\text{total}}(\theta)
+J_{\mathrm{total}}(\theta)
 =
-J_{\text{RL}}(\theta)
+J_{\mathrm{RL}}(\theta)
 -
-\alpha L_{\text{OPD}}(\theta)
+\alpha L_{\mathrm{OPD}}(\theta)
 $$
 
 * **物理意义**: RL 告诉模型 "最终答案好不好", OPD 告诉模型 "每一步更像强 Teacher 会怎么写". 这样可以缓解 RL 奖励稀疏的问题.
@@ -271,7 +282,7 @@ $$
 2. 使用 Student Model 生成回答:
 
 $$
-y \sim p_{\theta_{old}}(y|x)
+y \sim p_{\theta_{\mathrm{old}}}(y \mid x)
 $$
 
 3. 保存每条回答的完整 token 序列:
@@ -283,7 +294,7 @@ $$
 4. 对每个位置构造前缀:
 
 $$
-(x,y_{<t})
+(x,y_{1:t-1})
 $$
 
 这一步是 OPD 和普通离线 KD 的根本区别. 普通 KD 学的是 Teacher 前缀, OPD 学的是 Student 自己真实会走到的前缀.
@@ -292,10 +303,10 @@ $$
 
 ### 3.3 Teacher Feedback Phase
 
-对于 Student 生成出的每一个前缀 $(x,y_{<t})$, 将它输入 Teacher Model, 得到 Teacher 的下一 token 分布:
+对于 Student 生成出的每一个前缀 $(x,y_{1:t-1})$, 将它输入 Teacher Model, 得到 Teacher 的下一 token 分布:
 
 $$
-p_T(\cdot|x,y_{<t})
+p_T(\cdot \mid x,y_{1:t-1})
 $$
 
 如果 Teacher 是 white-box model, 可以直接拿到 logits 或概率分布.
@@ -316,7 +327,7 @@ $$
 将同样的前缀输入 Student Model, 得到:
 
 $$
-p_\theta(\cdot|x,y_{<t})
+p_\theta(\cdot \mid x,y_{1:t-1})
 $$
 
 然后计算 Teacher 和 Student 的分布差异:
@@ -324,24 +335,24 @@ $$
 $$
 D_f
 \left(
-p_T(\cdot|x,y_{<t})
-||
-p_\theta(\cdot|x,y_{<t})
+p_T(\cdot \mid x,y_{1:t-1})
+\Vert
+p_\theta(\cdot \mid x,y_{1:t-1})
 \right)
 $$
 
 对整条回答的所有 token 求和或求平均:
 
 $$
-L_{\text{OPD}}
+L_{\mathrm{OPD}}
 =
-\frac{1}{|y|}
-\sum_{t=1}^{|y|}
+\frac{1}{\lvert y \rvert}
+\sum_{t=1}^{\lvert y \rvert}
 D_f
 \left(
-p_T(\cdot|x,y_{<t})
-||
-p_\theta(\cdot|x,y_{<t})
+p_T(\cdot \mid x,y_{1:t-1})
+\Vert
+p_\theta(\cdot \mid x,y_{1:t-1})
 \right)
 $$
 
@@ -355,7 +366,7 @@ $$
 
 ### 3.5 Student Update Phase
 
-1. 对 $L_{\text{OPD}}$ 反向传播.
+1. 对 $L_{\mathrm{OPD}}$ 反向传播.
 2. 使用优化器更新 Student Model 参数 $\theta$.
 3. Teacher Model 保持冻结.
 4. 当前 rollout 数据用完后丢弃.
@@ -364,13 +375,13 @@ $$
 这形成一个不断循环的过程:
 
 $$
-\text{Student Generate}
+\mathrm{Student\ Generate}
 \rightarrow
-\text{Teacher Feedback}
+\mathrm{Teacher\ Feedback}
 \rightarrow
-\text{Distill Update}
+\mathrm{Distill\ Update}
 \rightarrow
-\text{Student Generate Again}
+\mathrm{Student\ Generate\ Again}
 $$
 
 随着 Student 变强, 它生成的数据分布也会不断变化, 因此 OPD 的训练分布是非静态的.
@@ -446,12 +457,7 @@ $$
 
 组合起来可以理解为:
 
-$$
-\text{GRPO / DAPO}: \text{告诉模型最终哪条回答更好}
-$$
-
-$$
-\text{OPD}: \text{告诉模型每一步更像强 Teacher 会怎么走}
-$$
+- **GRPO / DAPO**: 告诉模型最终哪条回答更好.
+- **OPD**: 告诉模型每一步更像强 Teacher 会怎么走.
 
 因此, 在长 CoT 推理训练中, OPD 经常可以作为 GRPO / DAPO 的辅助项, 用来提供更密集的中间监督信号.
