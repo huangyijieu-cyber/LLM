@@ -41,13 +41,8 @@ $$
 ### 2.1 自回归生成建模
 
 对于一个 Prompt $x$, LLM 生成回答 $y = \{y_1, y_2, \dots, y_T\}$ 时, 可以写成逐 token 的条件概率乘积:
-
-$$
-p_\theta(y|x)=\prod_{t=1}^{T}p_\theta(y_t|x,y_{<t})
-$$
-
+$$p_\theta(y|x)=\prod_{t=1}^{T}p_\theta(y_t|x,y_{<t})$$
 其中:
-
 - $p_\theta$: Student Model 的策略分布.
 - $p_T$: Teacher Model 的策略分布.
 - $y_{<t}$: 当前 token 之前已经生成的前缀.
